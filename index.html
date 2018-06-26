@@ -1,0 +1,315 @@
+
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+<script src="https://unpkg.com/vue"></script>
+<script src="https://unpkg.com/http-vue-loader"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/moment@2.22.1/moment.min.js"></script>
+<script src="https://cdn.rawgit.com/simplesmiler/vue-clickaway/2.1.0/dist/vue-clickaway.js"></script>
+
+<script>
+httpVueLoader.register(Vue, 'datepicker.vue');
+</script>
+<div id="app">
+	<div class="panel">
+		<div class='panel-heading form-inline'>
+			<table>
+				<tr>
+					<td colspan="2" class="bg-warning text-center">西元年</td>
+				</tr>
+				<tr>
+					<td>Full DateTime: </td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="en" type="datetime"
+							valueformat="YYYYMMDDHHmmss" v-model="date"
+							displayformat="YYYY-MM-DD HH:mm:ss"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td>Date:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="en" type="date"
+							valueformat="YYYYMMDD" v-model="date2"
+							displayformat="YYYY-MM-DD"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td>Year:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="en" type="year"
+							valueformat="YYYY" v-model="year"
+							displayformat="YYYY"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td>YearMonth:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="en" type="month"
+							valueformat="YYYYMM" v-model="month"
+							displayformat="YYYY-MM"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td>Time:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="en" type="time"
+							valueformat="HHmm" v-model="date2"
+							displayformat="HH:mm"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td colspan="2" class="bg-success text-center">民國年</td>
+				</tr>
+				<tr>
+					<td>Full DateTime: </td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="zh" type="datetime"
+							valueformat="YYYYMMDDHHmmss" v-model="date"
+							displayformat="YYYY-MM-DD HH:mm"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td>Date:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="zh" type="date"
+							valueformat="YYYYMMDD" v-model="date2"
+							displayformat="YYYY-MM-DD"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td>Year:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="zh" type="year"
+							valueformat="YYYY" v-model="year"
+							displayformat="YYYY"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td>YearMonth:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="zh" type="month"
+							valueformat="YYYYMM" v-model="month"
+							displayformat="YYYY-MM"></datepicker>
+					</td>
+				</tr>
+				<tr>
+					<td>Time:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="zh" type="time"
+							valueformat="HHmm" v-model="date2"
+							displayformat="HH:mm"></datepicker>
+					</td>
+				</tr>
+			</table>
+			<br>
+			<br>
+			
+			<span class="text-center" style="font-weight: bold; font-size: 24px;">測試</span>
+			<table>
+				<tr>
+					<td>1. 輸入值:</td>
+					<td><input type="text" class="form-control" v-model="input"></td>
+				</tr>
+				<tr>
+					<td>2. 資料型態:</td>
+					<td>
+						<select class="form-control" v-model="dateType">
+							<option v-for="item in dateTypes" :value="item">{{item}}</option>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<td>3. 顯示年制:</td>
+					<td>
+						<select class="form-control" v-model="displayLang">
+							<option value="en">西元年</option>
+							<option value="zh">民國年</option>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<td>4. 輸入格式</td>
+					<td>
+						<select class="form-control" v-model="formatStr">
+							<option v-for="item in formatObjs" 
+							        :value="item.formatStr"
+							        v-show="item.dateType == dateType">
+								{{item.formatStr}}
+							</option>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<td>5. 顯示格式</td>
+					<td>
+						<select class="form-control" v-model="displayFormatStr">
+							<option v-for="item in formatObjs" 
+							        :value="item.formatStr"
+							        v-show="item.dateType == dateType">
+								{{item.formatStr}}
+							</option>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<td>結果</td>
+					<td>
+						<datepicker 
+							language="zh" :displaylang="displayLang" :type="dateType"
+							:valueformat="formatStr" v-model="input"
+							:displayformat="displayFormatStr"></datepicker>
+					</td>
+				</tr>
+			</table>
+			
+		</div>
+	</div>
+</div>
+<script>
+var app = new Vue({
+	el: '#app',
+	data: {
+	    date: undefined,
+	    date1: new Date(),
+	    date2: undefined,
+	    displayLang: 'zh',
+	    year: '2018',
+	    month: '201806',
+	    
+	    input: '2018',
+	    dateType: 'year',
+	    dateTypes: ['year', 'month', 'date', 'datetime', 'time'],
+	    formatStr: 'YYYY',
+	    displayFormatStr: "YY",
+	    formatObjs: [{
+		    dateType: 'year',
+		    formatStr: "YYYY"
+		},
+		{
+		    dateType: 'year',
+		    formatStr: "YY"
+		},
+		{
+		    dateType: 'month',
+		    formatStr: "YYYYMM"
+		},
+		{
+		    dateType: 'month',
+		    formatStr: "YYYY-MM"
+		},
+		{
+		    dateType: 'month',
+		    formatStr: "YYYY/MM"
+		},
+		{
+		    dateType: 'month',
+		    formatStr: "YYYY.MM"
+		},
+		{
+		    dateType: 'month',
+		    formatStr: "YYMM"
+		},
+		{
+		    dateType: 'month',
+		    formatStr: "YY-MM"
+		},
+		{
+		    dateType: 'month',
+		    formatStr: "YY/MM"
+		},
+		{
+		    dateType: 'month',
+		    formatStr: "YY.MM"
+		},
+		{
+		    dateType: 'date',
+		    formatStr: "YYYYMMDD"
+		},
+		{
+		    dateType: 'date',
+		    formatStr: "YYYY-MM-DD"
+		},
+		{
+		    dateType: 'date',
+		    formatStr: "YYYY/MM/DD"
+		},
+		{
+		    dateType: 'date',
+		    formatStr: "YYYY.MM.DD"
+		},
+		{
+		    dateType: 'date',
+		    formatStr: "YYMMDD"
+		},
+		{
+		    dateType: 'date',
+		    formatStr: "YY-MM-DD"
+		},
+		{
+		    dateType: 'date',
+		    formatStr: "YY/MM/DD"
+		},
+		{
+		    dateType: 'date',
+		    formatStr: "YY.MM.DD"
+		},
+		{
+		    dateType: 'datetime',
+		    formatStr: "YYYYMMDDHHmm"
+		},
+		{
+		    dateType: 'datetime',
+		    formatStr: "YYYY-MM-DD HH:mm"
+		},
+		{
+		    dateType: 'datetime',
+		    formatStr: "YYYY/MM/DD HH:mm"
+		},
+		{
+		    dateType: 'datetime',
+		    formatStr: "YYYY.MM.DD HH:mm"
+		},
+		{
+		    dateType: 'datetime',
+		    formatStr: "YYMMDDHHmm"
+		},
+		{
+		    dateType: 'datetime',
+		    formatStr: "YY-MM-DD HH:mm"
+		},
+		{
+		    dateType: 'datetime',
+		    formatStr: "YY/MM/DD HH:mm"
+		},
+		{
+		    dateType: 'datetime',
+		    formatStr: "YY.MM.DD HH:mm"
+		},
+		{
+		    dateType: 'time',
+		    formatStr: "HHmm"
+		},
+		{
+		    dateType: 'time',
+		    formatStr: "HH:mm"
+		},
+		{
+		    dateType: 'time',
+		    formatStr: "HHmmss"
+		},
+		{
+		    dateType: 'time',
+		    formatStr: "HH:mm:ss"
+		},]
+	},
+});
+</script>
