@@ -1,9 +1,12 @@
 <template>
-	<div class="date-picker form-inline form-control" v-on-clickaway="close">
+	<div class="date-picker form-inline form-control"
+	     :class="{'isdisabled' : isdisabled == 'true'}" 
+	     v-on-clickaway="close">
 		<div class="form-horizontal has-feedback">
 			<input class="hasclear"
+				   :class="{'isdisabled' : isdisabled == 'true'}" 
                    v-bind:value="value | displayFormatter(selectedDate, displaylang, valueformat, displayformat, dateType)" 
-                   @click="(panelState = !panelState);"
+                   @click="toggleState"
                    @mouseenter="showCancel = true" 
                    @mouseleave="showCancel = false" readonly>
             <span id="searchclear" v-show="panelState && value != null && value != ''" @click="clear" class="fa fa-times"></span>
@@ -327,6 +330,9 @@ module.exports = {
 	    // 選擇type:normal, year, month, time
 	    type : {
 	        default: 'date',
+	    },
+	    isdisabled : {
+	        default: false,
 	    }
 	},
 	data: function() {
@@ -661,6 +667,11 @@ module.exports = {
 		clear: function() {
 			this.clearSelected();
         	return this.$emit('input', "");
+      	},
+      	toggleState: function() {
+      		console.log(this.isdisabled);
+      		if(!this.isdisabled)
+      			this.panelState = !this.panelState;
       	}
 	},
 	computed: {
@@ -818,6 +829,9 @@ module.exports = {
 	    background-color: white !important;
 	    border: none;
 	    width: 100%
+    }
+    .isdisabled {
+    	background-color: #eee !important;
     }
     
      .btn-options {

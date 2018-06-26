@@ -1,4 +1,3 @@
-
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
 <script src="https://unpkg.com/vue"></script>
 <script src="https://unpkg.com/http-vue-loader"></script>
@@ -109,6 +108,18 @@ httpVueLoader.register(Vue, 'datepicker.vue');
 							displayformat="HH:mm"></datepicker>
 					</td>
 				</tr>
+				<tr>
+					<td colspan="2" class="bg-success text-center">設定</td>
+				<tr>
+					<td>設定唯讀:</td>
+					<td>
+						<datepicker 
+							language="zh" displaylang="zh" type="datetime"
+							valueformat="YYYYMMDDHHmmss" v-model="date2"
+							displayformat="YYYY.MM.DD HH:mm:ss" isdisabled="true"></datepicker>
+					</td>
+				</tr>
+				</tr>
 			</table>
 			<br>
 			<br>
@@ -178,9 +189,9 @@ httpVueLoader.register(Vue, 'datepicker.vue');
 var app = new Vue({
 	el: '#app',
 	data: {
-	    date: undefined,
+	    date: new Date(),
 	    date1: new Date(),
-	    date2: undefined,
+	    date2: new Date(),
 	    displayLang: 'zh',
 	    year: '2018',
 	    month: '201806',
