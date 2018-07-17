@@ -1,0 +1,82 @@
+
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<script src="https://unpkg.com/vue"></script>
+<script src="https://unpkg.com/uiv"></script>
+<script src="https://unpkg.com/http-vue-loader"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://unpkg.com/vue-router"></script>
+<script src="https://unpkg.com/babel-polyfill/dist/polyfill.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.22.1/moment.min.js"></script>
+<script src="https://cdn.rawgit.com/simplesmiler/vue-clickaway/2.1.0/dist/vue-clickaway.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+<div id="app">
+	<div class="panel panel-info">
+		<div class='panel-heading form-inline'>
+			<btn
+				type='info'
+				v-on:click='send'>send</btn>
+		</div>
+		<div class="panel-body">
+		</div>
+	</div>
+</div>
+<script>
+var app = new Vue({
+	el: '#app',
+	data: {
+	    
+	},
+	methods: {
+	    send: function() {
+			var url = "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec";
+            var data = new FormData();
+            data.append('parameter', {
+                "id": "123456",
+                "item": "G腿飯",
+                'price':"40",
+            });
+            axios({
+                // 這邊用get type
+                method: "get",
+                // api url - google appscript 產出的 url
+                url: url,
+                // 剛剛整理好的資料帶入
+                data: data,
+                // 資料格式是JSON 
+                responseType: "JSON", }).then(function(response) {
+                  console.log(response);
+                  alert('Success！！');
+                }
+              );
+		}
+	},
+});
+
+function send(data){
+    var data = {
+                "parameter": {
+                    "id": "123456",
+                    "item": "G腿飯",
+                    'price':"40",
+                  }
+              };
+              
+    $.ajax({
+      // 這邊用get type
+      type: "get",
+      // api url - google appscript 產出的 url
+      url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+      // 剛剛整理好的資料帶入
+      data: data,
+      // 資料格式是JSON 
+      dataType: "JSON",
+      // 成功送出 會回頭觸發下面這塊感謝
+      success: function (response) {
+        console.log(response);
+        alert('感謝您的訂購！！');
+      }
+    });
+  }
+</script>
