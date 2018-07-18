@@ -289,9 +289,7 @@ var app = new Vue({
 	            action: ''
 	        },
 	    },
-	    auth: {
-	        
-	    },
+	    auth: {},
 	    title: '',
 	    name: '',
 	    menu: [],
@@ -638,6 +636,7 @@ function getAuth() {
     success: function (response) {
         var auth = response[0];
         app.auth = auth;
+        app.getTitle();
     }
   });
 }
