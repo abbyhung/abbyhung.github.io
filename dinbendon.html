@@ -644,6 +644,8 @@ function getAuth() {
 $(function(){
     getSetting();
     var name = readCookie("dinbendonSessionId");
+    if(name.length > 0)
+        query(name);
     app.name = name;
     queryAll();
 });
