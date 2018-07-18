@@ -1,4 +1,3 @@
-
 <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
 <script src="https://unpkg.com/vue"></script>
@@ -12,71 +11,605 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
 <div id="app">
-	<div class="panel panel-info">
-		<div class='panel-heading form-inline'>
-			<btn
-				type='info'
-				v-on:click='send'>send</btn>
-		</div>
-		<div class="panel-body">
-		</div>
+	<modal
+		v-model="view.loading"
+		title="系統提醒"
+		size="lg"
+		:footer="false"
+		:backdrop="false">
+	<p>資料處理中，請稍候...</p>
+	</modal>
+	<div class="col-md-10 col-md-offset-1">
+		<collapse v-model="view.alerts.length > 0">
+			<alert
+				v-for="(item, index) in view.alerts"
+				v-bind:type='item.type'
+				class='alert-csc' dismissible @dismissed="view.alerts.splice(index, 1);"> 
+				<b>系統訊息：</b> <span v-html='item.message'></span>
+			</alert>
+		</collapse>
+		<tabs>
+		    <tab title="訂購">
+		    	<div class="panel panel-info">
+					<div class='panel-heading'>
+						<div class=" form-inline">
+							<div class='form-group'>
+								<div class='input-group'>
+									<span class='input-group-addon'>訂購人</span>
+									<tooltip text="必須填寫訂購人&訂購項目" trigger="manual" 
+									         v-model="nameEmpty"
+									         placement="bottom">
+										<input type='text' @change="nameEmpty = false" 
+										       class='form-control' v-model='name'>
+									</tooltip>
+								</div>
+							</div>
+							<btn
+								type='info'
+								@click="query"
+								><i class="fa fa-search" aria-hidden="true"></i> 查詢
+							</btn>
+						</div>
+						<div class=" form-inline">
+							<btn
+								type='info'
+								@click="send"
+								><i class="fa fa-paper-plane" aria-hidden="true"></i> 訂購
+							</btn>
+							<btn
+								type='danger'
+								@click="deleteData"
+								><i class="fa fa-trash" aria-hidden="true"></i> 取消訂購
+							</btn>
+						</div>
+					</div>
+					<div class="panel-footer">
+						<div class="panel panel-warning">
+							<div class="panel-heading">
+								<span role="button" @click="showOrder = !showOrder">
+									訂購項目  <i class="fa fa-plus" aria-hidden="true"></i>
+								</span>
+							</div>
+					    	<collapse v-model="showOrder">
+								<div class="panel-body">
+								    <table class="table table-striped">
+										<thead>
+											<tr>
+												<th>項目</th>
+												<th>細項</th>
+												<th>金額</th>
+												<th>數量</th>
+												<th>備註</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr v-for="(item, index) in order">
+												<td>{{item.name}}</td>
+												<td>{{item.sub}}</td>
+												<td>${{item.amt}}</td>
+												<td>{{item.qty}}</td>
+												<td>
+													<textarea rows="3" cols="10" class="form-control" v-model="item.comment">
+													</textarea>
+												</td>
+												<td>
+													<btn
+														type='danger'
+														@click="deleteItem(item)"
+														><i class="fa fa-minus" aria-hidden="true"></i> 刪除</btn>
+												</td>
+											</tr>
+										</tbody>
+										<tfoot>
+											<tr class="success">
+												<td colspan="2">合計</td>
+												<td colspan="4">${{totalAmt}}</td>
+											</tr>
+										</tfoot>
+									</table>
+								</div>
+					    	</collapse>
+						</div>
+					</div>
+					<div class="panel-body">
+						<div class="panel panel-warning">
+							<div class="panel-heading">
+								<span role="button" @click="showMenu = !showMenu">
+									菜單  <i class="fa fa-plus" aria-hidden="true"></i>
+								</span>
+							</div>
+					      	<collapse v-model="showMenu">
+								<div class="panel-body">
+									<table class="table table-striped">
+										<thead>
+											<tr>
+												<th>項目</th>
+												<th>細項</th>
+												<th>金額</th>
+												<th>數量</th>
+												<th>備註</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr v-for="(item, index) in menu">
+												<td>{{item.name}}</td>
+												<td>
+													<tooltip text="必須選擇細項" trigger="manual" v-model="item.showSubError">
+														<span v-for="(sub, seq) in item.subs">
+															<input type="radio" 
+															       v-model="item.sub" 
+															       @click="item.showSubError = false"
+															       :value="sub">{{sub}}
+														</span>
+													</tooltip>
+												</td>
+												<td>${{item.amt}}</td>
+												<td>
+													<tooltip text="數量不得小於0" trigger="manual" v-model="item.showQtyError">
+														<input type="number" 
+														       style="width: 80px" 
+														       class="form-control"
+														       @change="item.showQtyError = item.qty <= 0"
+														       v-model="item.qty">
+													</tooltip>
+												</td>
+												<td>
+													<textarea rows="3" cols="10" class="form-control" v-model="item.comment">
+													</textarea>
+												</td>
+												<td>
+													<btn
+														type='success'
+														@click="push(item)"
+														><i class="fa fa-plus" aria-hidden="true"></i> 新增</btn>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</collapse>
+						</div>
+					</div>
+				</div>
+		    </tab>
+		    <tab title="全部訂購">
+				<div class="panel panel-info">
+					<div class="panel-heading">
+					</div>
+					<div class="panel-body">
+						<table class="table table-striped">
+							<thead>
+								<tr>
+									<th>訂購人</th>
+									<th>項目</th>
+									<th>細項</th>
+									<th>金額</th>
+									<th>數量</th>
+									<th>備註</th>
+									<th>操作</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(item, index) in allOrder">
+									<td>{{item.id}}</td>
+									<td>{{item.name}}</td>
+									<td>{{item.sub}}</td>
+									<td>${{item.amt}}</td>
+									<td>{{item.qty}}</td>
+									<td>
+										<textarea rows="3" cols="10" 
+										          class="form-control" 
+										          v-model="item.comment" readonly>
+										</textarea>
+									</td>
+									<td> {{item.status ? '已付款' : '尚未付款'}}
+										<btn
+											type='success' v-show="name == auth.sysAdmin || name == auth.contractor"
+											@click="checkItem(item)"
+											><i class="fa fa-check" 
+											    aria-hidden="true"></i> 付款
+									    </btn>
+										<btn
+											type='danger' v-show="name == auth.sysAdmin"
+											@click="deleteItem(item)"
+											><i class="fa fa-trash" 
+											    aria-hidden="true"></i> 刪除
+									    </btn>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+		    </tab>
+		    <tab title="總計資料">
+				<div class="panel panel-info">
+					<div class="panel-heading">
+					</div>
+					<div class="panel-body">
+						<table class="table table-striped">
+							<thead>
+								<tr>
+									<th>項目</th>
+									<th>細項</th>
+									<th>金額</th>
+									<th>數量</th>
+									<th>備註</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="(item, index) in summaryOrder">
+									<td>{{item.name}}</td>
+									<td>{{item.sub}}</td>
+									<td>${{item.amt}}</td>
+									<td>{{item.qty}}</td>
+									<td>
+										<textarea rows="3" cols="10" 
+										          class="form-control" 
+										          v-model="item.comment" readonly>
+										</textarea>
+									</td>
+								</tr>
+							</tbody>
+							<tfoot>
+								<tr class="success">
+									<td colspan="2">合計</td>
+									<td colspan="3">${{summaryAmt}}</td>
+								</tr>
+							</tfoot>
+						</table>
+					</div>
+				</div>
+		    </tab>
+	    </tabs>	
+	
+		
 	</div>
 </div>
 <script>
 var app = new Vue({
 	el: '#app',
 	data: {
-	    
+	    view: {
+	        alerts: [],
+	        loading: false,
+	    },
+	    auth: {
+	        sysAdmin: '',
+	        contractor: '',
+	    },
+	    name: '',
+	    menu: [],
+	    order: [],
+	    showMenu: true,
+	    showOrder: true,
+	    nameEmpty: false,
+	    allOrder: [],
+	    summaryOrder: [],
+	},
+	computed: {
+	    totalAmt: function() {
+	        var totalAmt = 0;
+	        for(index in this.order) {
+	            totalAmt += this.order[index].amt * this.order[index].qty;
+	        }
+	        return totalAmt;
+	    },
+	    summaryAmt: function() {
+	        var totalAmt = 0;
+	        for(index in this.summaryOrder) {
+	            totalAmt += this.summaryOrder[index].amt * this.summaryOrder[index].qty;
+	        }
+	        return totalAmt;
+	        
+	    },
 	},
 	methods: {
 	    send: function() {
-			var url = "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec";
-            var data = new FormData();
-            data.append('parameter', {
-                "id": "123456",
-                "item": "G腿飯",
-                'price':"40",
-            });
-            axios({
-                // 這邊用get type
-                method: "get",
-                // api url - google appscript 產出的 url
-                url: url,
-                // 剛剛整理好的資料帶入
-                data: data,
-                // 資料格式是JSON 
-                responseType: "JSON", }).then(function(response) {
-                  console.log(response);
-                  alert('Success！！');
-                }
-              );
+	        if(this.name.length == 0) {
+	            this.nameEmpty = true;
+	            return;
+	        } 
+	        if(this.order.length == 0) {
+	            this.nameEmpty = true;
+	            return;
+	        } 
+	        this.nameEmpty = false;
+	        
+	        var data = {};
+	        var order = [];
+	        for(index in this.order) {
+	            var temp = {};
+	            temp["name"] = this.order[index]["name"];
+	            temp["sub"] = this.order[index]["sub"] == undefined ? '' : this.order[index]["sub"];
+	            temp["qty"] = this.order[index]["qty"];
+	            temp["comment"] = this.order[index]["comment"] == undefined ? '' : this.order[index]["comment"];
+	            temp["amt"] = this.order[index]["amt"];
+	            order.push(temp);
+	        }
+	        data["order"] = JSON.stringify(order);
+	        data["name"] = this.name;
+	        data["actionType"] = 'send';
+            send(data);
+		},
+		push: function(item) {
+		    if(item.qty <= 0) {
+		        item.showQtyError = true;
+		        return;
+		    }
+		    if(item.subs && item.subs.length > 0 && 
+		            (item.sub == undefined || item.sub == null || item.sub.length == 0)) {
+		        item.showSubError = true;
+		        return;
+		    }
+		    item.showSubError = false;
+		    this.order.push($.extend(true, {}, item));
+		},
+		query: function() {
+		    query(this.name);
+		},
+		deleteData: function() {
+		    deleteData(this.name);
+		},
+		deleteItem: function(item) {
+		    deleteItem(item);
+		},
+		checkItem: function(item) {
+		    checkItem(item);
 		}
 	},
 });
 
-function send(data){
-    var data = {
-                "parameter": {
-                    "id": "123456",
-                    "item": "G腿飯",
-                    'price':"40",
-                  }
-              };
-              
+// 刪除全部
+function deleteData(name) {
+    app.view.loading = true;
     $.ajax({
-      // 這邊用get type
-      type: "get",
-      // api url - google appscript 產出的 url
-      url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
-      // 剛剛整理好的資料帶入
-      data: data,
-      // 資料格式是JSON 
-      dataType: "JSON",
-      // 成功送出 會回頭觸發下面這塊感謝
-      success: function (response) {
-        console.log(response);
-        alert('感謝您的訂購！！');
-      }
-    });
-  }
+        // 這邊用get type
+        type: "get",
+        // api url - google appscript 產出的 url
+        url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+        // 剛剛整理好的資料帶入
+        data: {actionType: 'delete', name: name},
+        // 資料格式是JSON 
+        dataType: "JSON",
+        // 成功送出 會回頭觸發下面這塊感謝
+        success: function (response) {
+            app.view.loading = false;
+            app.order = [];
+            getSetting();
+    		queryAll();
+        }
+      });
+}
+
+// 刪除單一項目
+function deleteItem(item) {
+    app.view.loading = true;
+    app.order.splice(app.order.indexOf(item), 1);
+    $.ajax({
+        // 這邊用get type
+        type: "get",
+        // api url - google appscript 產出的 url
+        url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+        // 剛剛整理好的資料帶入
+        data: {actionType: 'deleteItem', order: JSON.stringify(item)},
+        // 資料格式是JSON 
+        dataType: "JSON",
+        // 成功送出 會回頭觸發下面這塊感謝
+        success: function (response) {
+            app.view.loading = false;
+            getSetting();
+        	queryAll();
+        }
+      });
+}
+
+//付款單一項目
+function checkItem(item) {
+    app.view.loading = true;
+    $.ajax({
+        // 這邊用get type
+        type: "get",
+        // api url - google appscript 產出的 url
+        url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+        // 剛剛整理好的資料帶入
+        data: {actionType: 'checkItem', order: JSON.stringify(item)},
+        // 資料格式是JSON 
+        dataType: "JSON",
+        // 成功送出 會回頭觸發下面這塊感謝
+        success: function (response) {
+            app.view.loading = false;
+            getSetting();
+        	queryAll();
+        }
+      });
+}
+
+// 查詢
+function query(name) {
+    app.view.loading = true;
+    app.order = [];
+	$.ajax({
+	  // 這邊用get type
+	  type: "get",
+	  // api url - google appscript 產出的 url
+	  url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+	  // 剛剛整理好的資料帶入
+	  data: {actionType: 'query', name: name},
+	  // 資料格式是JSON 
+	  dataType: "JSON",
+	  // 成功送出 會回頭觸發下面這塊感謝
+	  success: function (response) {
+	        app.view.loading = false;
+	      
+	      app.order = response;
+	  }
+	});
+}
+
+// 查詢全部
+function queryAll() {
+    app.view.loading = true;
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+    // 剛剛整理好的資料帶入
+    data: {actionType: 'queryAll'},
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        app.view.loading = false;
+        app.allOrder = [];
+        app.summaryOrder = [];
+        if(response && response.length > 0) {
+            var summaryOrder = [];
+            app.allOrder = response;
+            for(index in response) {
+                var temp = response.filter(function(el){
+                    return el.name == response[index].name && 
+                    el.sub == response[index].sub;
+                });
+                if(temp && temp.length > 0) {
+                    var item = {};
+                    item["name"] = response[index].name;
+                    item["sub"] = response[index].sub;
+                    item["amt"] = response[index].amt;
+                    item["qty"] = 0;
+                    item["comment"] = '';
+                    for(i in temp) {
+                        item["qty"] += temp[i].qty;
+                        if(temp[i].comment && temp[i].comment.length > 0) {
+                            item["comment"] += temp[i].id + ': ' + temp[i].comment;
+                        }
+                    }
+
+                    var isExists = summaryOrder.filter(function(el){
+                        return el.name == response[index].name && 
+                        el.sub == response[index].sub;
+                    });
+                    if(isExists == null || isExists == undefined || isExists.length == 0) {
+                        summaryOrder.push(item);
+                    }
+                }
+	        }
+            app.summaryOrder = summaryOrder;
+        }
+    }
+  });
+}
+
+// 傳送訂購資料
+function send(data){
+    app.view.loading = true;
+    app.view.alerts = [];
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+    // 剛剛整理好的資料帶入
+    data: data,
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        app.view.loading = false;
+        app.order = [];
+        app.allOrder = [];
+        app.summaryOrder = [];
+        getSetting();
+        query(app.name);
+        queryAll();
+        writeCookie("dinbendonSessionId", app.name, 3);
+        app.view.alerts = [{
+            type: 'success',
+            message: '訂購成功。'
+        }];
+    }
+  });
+}
+function writeCookie(name, value, days) {
+    var date, expires;
+    if (days) {
+        date = new Date();
+        date.setTime(date.getTime()+(days*24*60*60*1000));
+        expires = "; expires=" + date.toGMTString();
+            }else{
+        expires = "";
+    }
+    document.cookie = name + "=" + value + expires + "; path=/";
+}
+
+function readCookie(name) {
+    var i, c, ca, nameEQ = name + "=";
+    ca = document.cookie.split(';');
+    for(i=0;i < ca.length;i++) {
+        c = ca[i];
+        while (c.charAt(0)==' ') {
+            c = c.substring(1,c.length);
+        }
+        if (c.indexOf(nameEQ) == 0) {
+            return c.substring(nameEQ.length,c.length);
+        }
+    }
+    return '';
+}
+
+function getSetting() {
+    app.view.loading = true;
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+    // 剛剛整理好的資料帶入
+    data: {actionType: 'getSetting'},
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        app.view.loading = false;
+        for(index in response) {
+            if(response[index].item.length > 0) 
+            	response[index]["subs"] = JSON.parse(response[index].item);
+        	response[index]["showQtyError"] = false;
+        	response[index]["showSubError"] = false;
+        }
+        app.menu = response;
+        getAuth();
+    }
+  });
+}
+
+function getAuth() {
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+    // 剛剛整理好的資料帶入
+    data: {actionType: 'getAuth'},
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        var auth = {};
+        for(index in response) {
+            auth["sysAdmin"] = response[index]["sysAdmin"];
+            auth["contractor"] = response[index]["contractor"];
+        }
+        app.auth = auth;
+    }
+  });
+}
+
+$(function(){
+    getSetting();
+    var name = readCookie("dinbendonSessionId");
+    app.name = name;
+    queryAll();
+});
 </script>
