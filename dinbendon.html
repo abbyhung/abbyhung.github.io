@@ -12,6 +12,15 @@
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
 <div id="app">
 	<modal
+		v-model="view.confirm.show"
+		title="系統提醒"
+		size="sm"
+		ok-text='確認'
+		cancel-text='取消'
+		v-on:hide='confirmHide'>
+	<p v-html='view.confirm.message'></p>
+	</modal>
+	<modal
 		v-model="view.loading"
 		title="系統提醒"
 		size="lg"
@@ -28,6 +37,7 @@
 				<b>系統訊息：</b> <span v-html='item.message'></span>
 			</alert>
 		</collapse>
+		<h3>{{title}}</h3>
 		<tabs>
 		    <tab title="訂購">
 		    	<div class="panel panel-info">
@@ -53,7 +63,7 @@
 						<div class=" form-inline">
 							<btn
 								type='info'
-								@click="send"
+								@click="showConfirm('send')"
 								><i class="fa fa-paper-plane" aria-hidden="true"></i> 訂購
 							</btn>
 							<btn
@@ -273,11 +283,16 @@ var app = new Vue({
 	    view: {
 	        alerts: [],
 	        loading: false,
+	        confirm: {
+	            show: false,
+	            message: '',
+	            action: ''
+	        },
 	    },
 	    auth: {
-	        sysAdmin: '',
-	        contractor: '',
+	        
 	    },
+	    title: '',
 	    name: '',
 	    menu: [],
 	    order: [],
@@ -303,6 +318,7 @@ var app = new Vue({
 	        return totalAmt;
 	        
 	    },
+	    
 	},
 	methods: {
 	    send: function() {
@@ -356,7 +372,31 @@ var app = new Vue({
 		},
 		checkItem: function(item) {
 		    checkItem(item);
-		}
+		},
+		getTitle: function() {
+	        if(this.auth != undefined && this.auth != null) {
+	            this.title =  moment(this.auth.orderDate).format('YYYY-MM-DD') + ' 菜單:' + this.auth.todayMenu; 
+	        }
+	    },
+		// 顯示確認框
+		showConfirm: function(action) {
+			var message = '';
+			
+			if (action != 'send') {
+				message = '確認操作？';
+			} else {
+				message = '訂購會將先前訂購資料刪除後重新新增全部，請確認當前資料為完整訂購資料，謝謝？';
+			}
+			this.view.confirm.message = message;
+			this.view.confirm.action = action;
+			this.view.confirm.show = true;
+		},
+		// 隱藏確認框
+		confirmHide: function(msg) {
+			if (msg !== 'ok') return;
+			
+			this.send();
+		},
 	},
 });
 
@@ -596,11 +636,7 @@ function getAuth() {
     dataType: "JSON",
     // 成功送出 會回頭觸發下面這塊感謝
     success: function (response) {
-        var auth = {};
-        for(index in response) {
-            auth["sysAdmin"] = response[index]["sysAdmin"];
-            auth["contractor"] = response[index]["contractor"];
-        }
+        var auth = response[0];
         app.auth = auth;
     }
   });
