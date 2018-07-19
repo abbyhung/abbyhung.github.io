@@ -64,11 +64,13 @@
 							<btn
 								type='info'
 								@click="showConfirm('send')"
+								:disabledd="inOrderTime"
 								><i class="fa fa-paper-plane" aria-hidden="true"></i> 訂購
 							</btn>
 							<btn
 								type='danger'
 								@click="deleteData"
+								:disabled="inOrderTime"
 								><i class="fa fa-trash" aria-hidden="true"></i> 取消訂購
 							</btn>
 						</div>
@@ -106,6 +108,7 @@
 													<btn
 														type='danger'
 														@click="deleteItem(item)"
+														:disabled="inOrderTime"
 														><i class="fa fa-minus" aria-hidden="true"></i> 刪除</btn>
 												</td>
 											</tr>
@@ -133,11 +136,12 @@
 									<table class="table table-striped">
 										<thead>
 											<tr>
-												<th>項目</th>
-												<th>細項</th>
+												<th style="width:180px">項目</th>
+												<th style="width:180px">細項</th>
 												<th>金額</th>
 												<th>數量</th>
-												<th>備註</th>
+												<th style="width:180px">備註</th>
+												<th></th>
 											</tr>
 										</thead>
 										<tbody>
@@ -145,23 +149,21 @@
 												<td>{{item.name}}</td>
 												<td>
 													<tooltip text="必須選擇細項" trigger="manual" v-model="item.showSubError">
-														<span v-for="(sub, seq) in item.subs">
-															<input type="radio" 
-															       v-model="item.sub" 
-															       @click="item.showSubError = false"
-															       :value="sub">{{sub}}
-														</span>
+														<select class="form-control" v-show="item.subs != null" style="width:150px"
+														        v-model="item.sub">
+														    <option v-for="(sub, seq) in item.subs" style="font-size: 12pt"
+																	:value="sub" :key="sub">
+														 			{{sub}}</option>
+														</select> 
 													</tooltip>
 												</td>
 												<td>${{item.amt}}</td>
 												<td>
-													<tooltip text="數量不得小於0" trigger="manual" v-model="item.showQtyError">
-														<input type="number" 
-														       style="width: 80px" 
-														       class="form-control"
-														       @change="item.showQtyError = item.qty <= 0"
-														       v-model="item.qty">
-													</tooltip>
+													<select class="form-control" v-model="item.qty">
+													    <option v-for="n in 10" style="font-size: 12pt"
+																:value="n" :key="n">
+													 			{{n}}</option>
+													</select> 
 												</td>
 												<td>
 													<textarea rows="3" cols="10" class="form-control" v-model="item.comment">
@@ -171,6 +173,7 @@
 													<btn
 														type='success'
 														@click="push(item)"
+														:disabled="inOrderTime"
 														><i class="fa fa-plus" aria-hidden="true"></i> 新增</btn>
 												</td>
 											</tr>
@@ -299,6 +302,7 @@ var app = new Vue({
 	    nameEmpty: false,
 	    allOrder: [],
 	    summaryOrder: [],
+	    inOrderTime: true,
 	},
 	computed: {
 	    totalAmt: function() {
@@ -357,7 +361,16 @@ var app = new Vue({
 		        return;
 		    }
 		    item.showSubError = false;
-		    this.order.push($.extend(true, {}, item));
+		    
+		    var temp = this.order.filter(function(el) {
+		       return el.name == item.name && el.sub == item.sub;
+		    });
+		    if(temp && temp.length == 1) {
+		        temp[0].qty += item.qty;
+		        if(item.comment.length > 0)
+		        temp[0].comment += ',' + item.comment;
+		    } else
+		    	this.order.push($.extend(true, {}, item));
 		},
 		query: function() {
 		    query(this.name);
@@ -372,9 +385,14 @@ var app = new Vue({
 		    checkItem(item);
 		},
 		getTitle: function() {
-	        if(this.auth != undefined && this.auth != null) {
-	            this.title =  moment(this.auth.orderDate).format('YYYY-MM-DD') + ' 菜單:' + this.auth.todayMenu; 
+	        this.inOrderTime = true;
+	        if(moment(this.auth.orderEnd) > new Date()) {
+	            this.inOrderTime = false;
 	        }
+	        if(this.auth != undefined && this.auth != null) {
+	            this.title =  moment(this.auth.orderDate).format('YYYY-MM-DD') + ' 菜單:' + this.auth.todayMenu + (this.inOrderTime ? ' 已截止' : ''); 
+	        }
+	        
 	    },
 		// 顯示確認框
 		showConfirm: function(action) {
@@ -383,7 +401,7 @@ var app = new Vue({
 			if (action != 'send') {
 				message = '確認操作？';
 			} else {
-				message = '訂購會將先前訂購資料刪除後重新新增全部，請確認當前資料為完整訂購資料，謝謝？';
+				message = '訂購會將先前訂購資料刪除後重新新增<br>請確認當前資料為完整訂購資料<br>';
 			}
 			this.view.confirm.message = message;
 			this.view.confirm.action = action;
