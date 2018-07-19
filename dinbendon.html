@@ -139,7 +139,7 @@
 												<th style="width:180px">項目</th>
 												<th style="width:180px">細項</th>
 												<th>金額</th>
-												<th>數量</th>
+												<th style="width:100px">數量</th>
 												<th style="width:180px">備註</th>
 												<th></th>
 											</tr>
@@ -159,7 +159,7 @@
 												</td>
 												<td>${{item.amt}}</td>
 												<td>
-													<select class="form-control" v-model="item.qty">
+													<select class="form-control" v-model="item.qty" style="width:80px">
 													    <option v-for="n in 10" style="font-size: 12pt"
 																:value="n" :key="n">
 													 			{{n}}</option>
