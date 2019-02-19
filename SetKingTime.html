@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/moment@2.22.1/moment.min.js"></script>
 <script src="https://cdn.rawgit.com/simplesmiler/vue-clickaway/2.1.0/dist/vue-clickaway.js"></script>
 <script src="https://unpkg.com/vue-the-mask@0.11.1/dist/vue-the-mask.js"></script>
+<script src="https://unpkg.com/vue-router/dist/vue-router.js"></script>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
@@ -94,8 +95,12 @@
 	</div>
 </div>
 <script>
+var router = new VueRouter({
+  mode: 'history',
+})
 var app = new Vue({
 	el: '#app',
+	router:router,
 	data: {
 	    view: {
 	        alerts: [],
@@ -126,7 +131,30 @@ var app = new Vue({
 	    	
 	    }
 	},
+	mounted:function() {
+		if(typeof this.$route.query.actionType !== undefined &&
+			this.$route.query.actionType == 'test') {
+			test();
+		}
+	}
 });
+// 查詢
+function test() {
+	$.ajax({
+	  // 這邊用get type
+	  type: "get",
+	  // api url - google appscript 產出的 url
+	  url: 'https://script.google.com/macros/s/AKfycbww3qi9rQbUScHgLVBMKufMwUf9eyY714Ar_MPkfTNl5sRFviU/exec',
+	  // 剛剛整理好的資料帶入
+	  data: {actionType: 'test', id: 'test', name: '111'},
+	  // 資料格式是JSON 
+	  dataType: "JSON",
+	  // 成功送出 會回頭觸發下面這塊感謝
+	  success: function (response) {
+
+	  }
+	});
+}
 
 // 查詢
 function query(id) {
