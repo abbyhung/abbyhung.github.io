@@ -1,0 +1,359 @@
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<script src="https://unpkg.com/vue"></script>
+<script src="https://unpkg.com/uiv"></script>
+<script src="https://unpkg.com/http-vue-loader"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://unpkg.com/vue-router"></script>
+<script src="https://unpkg.com/babel-polyfill/dist/polyfill.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.22.1/moment.min.js"></script>
+<script src="https://cdn.rawgit.com/simplesmiler/vue-clickaway/2.1.0/dist/vue-clickaway.js"></script>
+<script src="https://unpkg.com/vue-the-mask@0.11.1/dist/vue-the-mask.js"></script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+<div id="app">
+	<!-- <modal
+		v-model="view.confirm.show"
+		title="系統提醒"
+		size="sm"
+		ok-text='確認'
+		cancel-text='取消'
+		v-on:hide='confirmHide'>
+	<p v-html='view.confirm.message'></p>
+	</modal> -->
+	<modal
+		v-model="view.loading"
+		title="系統提醒"
+		size="lg"
+		:footer="false"
+		:backdrop="false">
+	<p>資料處理中，請稍候...</p>
+	</modal>
+	<div>
+		<collapse v-model="view.alerts.length > 0">
+			<alert
+				v-for="(item, index) in view.alerts"
+				v-bind:type='item.type'
+				class='alert-csc' dismissible @dismissed="view.alerts.splice(index, 1);"> 
+				<b>系統訊息：</b> <span v-html='item.message'></span>
+			</alert>
+		</collapse>
+		<div>
+			<div class='form-group'>
+				<div class='input-group'>
+					<span class='input-group-addon'>公會名稱</span>
+					<select class="form-control" style="width:200px"
+					        v-model="id">
+					    <option v-for="(sub, seq) in names" style="font-size: 12pt"
+								:value="sub.id" :key="sub.id">
+					 			{{sub.name}}</option>
+					</select> 
+				</div>
+			</div>
+			<div class='form-group'>
+				<div class='input-group'>
+					<span class='input-group-addon'>倒數時間</span>
+					<the-mask mask="##:##:##" class="form-control"
+					          v-model="countDown"
+					          ref="countDown"
+					          style="width:200px"/>
+				</div>
+			</div>
+			<div class='form-group'>
+				<div class='input-group'>
+					<span class='input-group-addon'>打王時間</span>
+					<the-mask mask="####/##/## ##:##" class="form-control"
+					          v-model="nextKingTime"
+					          style="width:200px"/>
+				</div>
+			</div>
+			<btn
+				type='info'
+				@click="query"
+				><i class="fa fa-search" aria-hidden="true"></i> 查詢
+			</btn>
+			<btn
+				type='warning'
+				@click="set"
+				><i class="fa fa-search" aria-hidden="true"></i> 設定
+			</btn>
+			<btn
+				type='danger'
+				@click="cancel"
+				><i class="fa fa-search" aria-hidden="true"></i> 取消
+			</btn>
+		</div>
+		
+	</div>
+</div>
+<script>
+var app = new Vue({
+	el: '#app',
+	data: {
+	    view: {
+	        alerts: [],
+	        loading: false,
+	        confirm: {
+	            show: false,
+	            message: '',
+	            action: ''
+	        },
+	    },
+	    id: '',
+	    countDown: '',
+	    nextKingTime: '',
+	    names: [],
+	},
+	computed: {
+	    
+	    
+	},
+	methods: {
+	    query: function() {
+	    	query(this.id);
+	    },
+	    set: function() {
+	    	set(this.id, this.countDown)
+	    },
+	    cancel: function() {
+	    	
+	    }
+	},
+});
+
+// 查詢
+function query(id) {
+    app.view.loading = true;
+    app.countDown = '';
+    app.nextKingTime = '';
+	$.ajax({
+	  // 這邊用get type
+	  type: "get",
+	  // api url - google appscript 產出的 url
+	  url: url,
+	  // 剛剛整理好的資料帶入
+	  data: {actionType: 'query', id: id},
+	  // 資料格式是JSON 
+	  dataType: "JSON",
+	  // 成功送出 會回頭觸發下面這塊感謝
+	  success: function (response) {
+	      app.view.loading = false;
+	      app.nextKingTime = response[0].nextKingTime;
+	      var now = new Date();
+	      computedCountDown();
+	  }
+	});
+}
+
+//查詢
+function set(id, countDown) {
+    app.view.loading = true;
+    app.nextKingTime = computedKingTime();
+    if(app.nextKingTime === undefined) return;
+	$.ajax({
+	  // 這邊用get type
+	  type: "get",
+	  // api url - google appscript 產出的 url
+	  url: url,
+	  // 剛剛整理好的資料帶入
+	  data: {actionType: 'set', id: id, KingTime: app.nextKingTime},
+	  // 資料格式是JSON 
+	  dataType: "JSON",
+	  // 成功送出 會回頭觸發下面這塊感謝
+	  success: function (response) {
+	      app.view.loading = false;
+	      app.nextKingTime = response[0].nextKingTime;
+	      var now = new Date();
+	      computedCountDown();
+	  }
+	});
+}
+function computedKingTime() {
+	if(typeof app.countDown === undefined || app.countDown == '' || app.countDown.length < 4) return undefined;
+	
+    var now = new Date();
+    now.setHours(now.getHours() + parseFloat(app.countDown.substring(0, 2)));
+    now.setMinutes(now.getMinutes() + parseFloat(app.countDown.substring(4, 6)));
+    var kingTime = new Date(app.nextKingTime.substring(0, 4) + '/' +
+  		  app.nextKingTime.substring(4, 6) + '/' +
+  		  app.nextKingTime.substring(6, 8) + ' '+
+  		  app.nextKingTime.substring(0, 2) + ':'+
+  		  app.nextKingTime.substring(2, 4));
+    return now.getFullYear() + ("0" + (now.getMonth() + 1)).slice(-2) + ("0" + now.getDate()).slice(-2) +
+    now.toTimeString().slice(0, 5).replace(':',"");
+}
+function computedCountDown() {
+	if(typeof app.nextKingTime === undefined || app.nextKingTime == '') return;
+	
+    var now = new Date();
+    var kingTime = new Date(app.nextKingTime.substring(0, 4) + '/' +
+  		  app.nextKingTime.substring(4, 6) + '/' +
+  		  app.nextKingTime.substring(6, 8) + ' '+
+  		  app.nextKingTime.substring(8, 10) + ':'+
+  		  app.nextKingTime.substring(10, 12));
+    var Date_C = new Date(kingTime - now);
+   	app.countDown = ("0" + Math.floor(Date_C.getTime() / 3600000)).slice(-2) + "" + 
+   	 ("0" + Date_C.getUTCMinutes()).slice(-2) + "" + 
+   	 ("0" + Date_C.getUTCSeconds()).slice(-2);
+}
+
+// 查詢全部
+function queryAll() {
+    app.view.loading = true;
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+    // 剛剛整理好的資料帶入
+    data: {actionType: 'queryAll'},
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        app.view.loading = false;
+        app.allOrder = [];
+        app.summaryOrder = [];
+        if(response && response.length > 0) {
+            var summaryOrder = [];
+            app.allOrder = response;
+            for(index in response) {
+                var temp = response.filter(function(el){
+                    return el.name == response[index].name && 
+                    el.sub == response[index].sub;
+                });
+                if(temp && temp.length > 0) {
+                    var item = {};
+                    item["name"] = response[index].name;
+                    item["sub"] = response[index].sub;
+                    item["amt"] = response[index].amt;
+                    item["qty"] = 0;
+                    item["comment"] = '';
+                    for(i in temp) {
+                        item["qty"] += temp[i].qty;
+                        if(temp[i].comment && temp[i].comment.length > 0) {
+                            item["comment"] += temp[i].id + ': ' + temp[i].comment;
+                        }
+                    }
+
+                    var isExists = summaryOrder.filter(function(el){
+                        return el.name == response[index].name && 
+                        el.sub == response[index].sub;
+                    });
+                    if(isExists == null || isExists == undefined || isExists.length == 0) {
+                        summaryOrder.push(item);
+                    }
+                }
+	        }
+            app.summaryOrder = summaryOrder;
+        }
+    }
+  });
+}
+
+// 傳送訂購資料
+function send(data){
+    app.view.loading = true;
+    app.view.alerts = [];
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+    // 剛剛整理好的資料帶入
+    data: data,
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        app.view.loading = false;
+        app.order = [];
+        app.allOrder = [];
+        app.summaryOrder = [];
+        getSetting();
+        query(app.name);
+        queryAll();
+        writeCookie("dinbendonSessionId", app.name, 3);
+        app.view.alerts = [{
+            type: 'success',
+            message: '訂購成功。'
+        }];
+    }
+  });
+}
+function writeCookie(name, value, days) {
+    var date, expires;
+    if (days) {
+        date = new Date();
+        date.setTime(date.getTime()+(days*24*60*60*1000));
+        expires = "; expires=" + date.toGMTString();
+            }else{
+        expires = "";
+    }
+    document.cookie = name + "=" + value + expires + "; path=/";
+}
+
+function readCookie(name) {
+    var i, c, ca, nameEQ = name + "=";
+    ca = document.cookie.split(';');
+    for(i=0;i < ca.length;i++) {
+        c = ca[i];
+        while (c.charAt(0)==' ') {
+            c = c.substring(1,c.length);
+        }
+        if (c.indexOf(nameEQ) == 0) {
+            return c.substring(nameEQ.length,c.length);
+        }
+    }
+    return '';
+}
+
+function getSetting() {
+    app.view.loading = true;
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: "https://script.google.com/macros/s/AKfycbxc88Mgyz7EH52Q6zDjdusohi-Fl5LdIGhVIV_ETGp8mrDa1NtP/exec",
+    // 剛剛整理好的資料帶入
+    data: {actionType: 'getSetting'},
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        app.view.loading = false;
+        for(index in response) {
+            if(response[index].item.length > 0) 
+            	response[index]["subs"] = JSON.parse(response[index].item);
+        	response[index]["showQtyError"] = false;
+        	response[index]["showSubError"] = false;
+        }
+        app.menu = response;
+        getAuth();
+    }
+  });
+}
+
+function getNameList() {
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: url,
+    // 剛剛整理好的資料帶入
+    data: {actionType: 'getNameList'},
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        var list = response[0];
+        app.names = list;
+    }
+  });
+}
+var url = 'https://script.google.com/macros/s/AKfycbww3qi9rQbUScHgLVBMKufMwUf9eyY714Ar_MPkfTNl5sRFviU/exec';
+$(function(){
+    getNameList();
+});
+</script>
