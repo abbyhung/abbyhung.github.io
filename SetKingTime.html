@@ -26,6 +26,14 @@
   OneSignal.push(function() {
     OneSignal.init({
       appId: "098f79be-0d28-4c4d-883a-6828edf96b24",
+      subdomainName: "xxxxx", // 填入自訂代表網站的字串
+      autoRegister: true, // 是否自動彈出訊息，詢問訪客是否訂閱
+      httpPermissionRequest: {
+      	enable: true
+      },
+      notifyButton: {
+      	enable: true // 是否顯示鈴鐺
+      }
     });
   });
 </script>
