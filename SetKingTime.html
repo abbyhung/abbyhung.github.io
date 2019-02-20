@@ -26,7 +26,7 @@
   OneSignal.push(function() {
     OneSignal.init({
       appId: "098f79be-0d28-4c4d-883a-6828edf96b24",
-      subdomainName: "xxxxx", // 填入自訂代表網站的字串
+      subdomainName: "Abby Studio", // 填入自訂代表網站的字串
       autoRegister: true, // 是否自動彈出訊息，詢問訪客是否訂閱
       httpPermissionRequest: {
       	enable: true
@@ -158,13 +158,25 @@ var app = new Vue({
 });
 // 查詢
 function test() {
+	
+	var jsonBody = { 
+	  app_id: "098f79be-0d28-4c4d-883a-6828edf96b24", 
+	  included_segments: ["All"],
+	  contents: {en: "English Message"},
+	  data: {foo: "bar"}
+	};
+
 	$.ajax({
 	  // 這邊用get type
-	  type: "get",
+	  type: "POST",
 	  // api url - google appscript 產出的 url
-	  url: 'https://script.google.com/macros/s/AKfycbww3qi9rQbUScHgLVBMKufMwUf9eyY714Ar_MPkfTNl5sRFviU/exec',
+	  url: 'https://onesignal.com/api/v1/notifications',
+	  headers: {
+		  "Content-Type": "application/json;charset=utf-8",
+		  "Authorization": "Basic NGEwMGZmMjItY2NkNy0xMWUzLTk5ZDUtMDAwYzI5NDBlNjJj"
+	  },
 	  // 剛剛整理好的資料帶入
-	  data: {actionType: 'test', id: 'test', name: '111'},
+	  data: JSON.stringify({ "command": "on" }),
 	  // 資料格式是JSON 
 	  dataType: "JSON",
 	  // 成功送出 會回頭觸發下面這塊感謝
