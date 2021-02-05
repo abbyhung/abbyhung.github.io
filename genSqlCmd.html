@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" >
+  <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
+  <head>
+    <!-- 網頁的資訊 -->
+	 <title>Mybatis SQL 語句處理</title>
+  </head>
+  <body>
+    <div id="app">
+		<div class="row justify-content-md-center">
+			<div class="col-md-4">
+				<button type="button" class="btn btn-primary" @click="load">Load</button>
+				<button type="button" class="btn btn-secondary" @click="save">Save</button>
+				<table class="table table-bordered">
+					<tr>
+						<td>資料型態<button type="button" class="btn btn-success" @click="addRow(dataTypes)">✚</button>
+						</td>
+						<td></td>
+					</tr>
+					<tr v-for="(item, index) in dataTypes">
+						<td><input class="form-control" v-model="dataTypes[index]"></td>
+						<td><button type="button" class="btn btn-danger" @click=" dataTypes.splice(index, 1); ">–</button>
+						</td>
+					</tr>
+				</table>
+			</div>
+			<div class="col-md-6">
+				<button type="button" class="btn btn-primary" @click="genSql">Gen Sql</button>
+				<button type="button" class="btn btn-secondary" @click="reset">Reset</button>
+				<table class="table table-bordered">
+					<tr>
+						<td style="width: 20%">原始Sql</td>
+						<td><textarea class="form-control" v-model="oSqlCmd"></textarea></td>
+					</tr>
+					<tr>
+						<td>sql 參數</td>
+						<td><textarea class="form-control" v-model="oParams"></textarea></td>
+					</tr>
+				</table>
+			</div>
+		</div>
+		<div class="row justify-content-md-center">
+			<div class="card col-md-10">
+				<div class="card-header">Result</div>
+				<div class="card-body">
+					<table class="table table-bordered">
+						<tr v-for="(item, index) in params">
+							<td style="width: 20%">參數 {{index + 1}}</td>
+							<td><input class="form-control" v-model="params[index]"></td>
+						</tr>
+					</table>
+				</div>
+				<div class="card-footer">
+					<textarea class="form-control" v-model="result"></textarea>
+				</div>
+			</div>
+		</div>
+    </div>
+    <script>
+    var vue = new Vue({
+    	el: "#app",
+        data: {
+            appId: "agzsa",
+            oSqlCmd: '',
+    		oParams: '',
+			params: [],
+			dataTypes: ['String', 'Decimal', 'int'],
+			result: '',
+        },
+        created: function() {
+        },
+        watch: {
+        },
+        filters: {
+        },
+        computed: {
+        },
+        methods: {
+			reset: function() {
+				this.oParams = '';
+				this.oSqlCmd = '';
+			},
+			genSql: function() {
+				var vm = this;
+				var tempParams = vm.splitNCheck(vm.oParams + ", ", vm.dataTypes);
+				vm.params = tempParams;
+				
+				var tempResult = '';
+				vm.oSqlCmd.split('?').forEach(function(str, i) {
+					if(str.length > 0 && tempParams[i].length > 0)
+						tempResult += str + "'" + tempParams[i] + "'"
+				});
+				vm.result = tempResult;
+			},
+			splitNCheck: function(str, dataTypes) {
+				for(i = 0; i < dataTypes.length; i++) {
+					str = str.replaceAll('(' + dataTypes[i] +'), ', '★');
+				}
+				return str.split('★');
+			},
+			save: function() {
+				var vm = this;
+				var dataTypeString = JSON.stringify(vm.dataTypes);
+				localStorage.setItem('dataTypeString', dataTypeString);
+			},
+			load: function() {
+				var vm = this;
+				var dataTypeString = localStorage.getItem('dataTypeString');
+				if(dataTypeString === null || dataTypeString === undefined || 
+					dataTypeString.length === 0) {
+					return;
+				}
+				var getDataArr = JSON.parse(dataTypeString);
+				vm.dataTypes = getDataArr;
+			},
+			addRow: function() {
+				this.dataTypes.push('');
+			}
+        },
+        mounted: function() {
+			this.load();
+        },
+    });
+	</script>
+  </body>
+</html>
+
+
