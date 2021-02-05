@@ -11,9 +11,32 @@
   <body>
     <div id="app">
 		<div class="row justify-content-md-center">
+			<div class="col-md-6">
+				<button type="button" class="btn btn-primary" @click="genSql">產生SQL CMD</button>
+				<button type="button" class="btn btn-secondary" @click="reset">清空</button>
+				<table class="table table-bordered">
+					<tr>
+						<td style="width: 20%">原始Sql</td>
+						<td><textarea class="form-control" v-model="oSqlCmd"></textarea></td>
+					</tr>
+					<tr>
+						<td>sql 參數</td>
+						<td><textarea class="form-control" v-model="oParams"></textarea></td>
+					</tr>
+					<tr>
+						<td colspan="2">
+						原始sql請輸入Console中印出的log，如：<br>select BOOK_ID_AGCX, VERSION_AGCX, COMP_ID_AGCX, IDNO_AGCX, FINANCE_TYPE_AGCX, TRADE_CODE_AGCX, ACCTCODE_AGCX, AMT_AGCX, UPDATECOMPID_AGCX, UPDATEEMPNO_AGCX, UPDATEDATE_AGCX, UPDATETIME_AGCX from AG.TBAGCX WHERE BOOK_ID_AGCX = ? AND VERSION_AGCX = ? AND IDNO_AGCX = ? AND FINANCE_TYPE_AGCX = ? AND TRADE_CODE_AGCX = ? AND ACCTCODE_AGCX = ? FETCH FIRST 100 ROWS ONLY 
+						</td>
+					</tr>
+					<tr>
+						<td colspan="2">sql 參數請輸入請輸入Console中印出的log，如：<br>0A(String), 202012(String), 30414175(String), B(String), C0031PRC(String), 113020060(String)
+						</td>
+					</tr>
+				</table>
+			</div>
 			<div class="col-md-4">
-				<button type="button" class="btn btn-primary" @click="load">Load</button>
-				<button type="button" class="btn btn-secondary" @click="save">Save</button>
+				<button type="button" class="btn btn-primary" @click="load">載入設定</button>
+				<button type="button" class="btn btn-secondary" @click="save">儲存設定</button>
 				<table class="table table-bordered">
 					<tr>
 						<td>資料型態<button type="button" class="btn btn-success" @click="addRow(dataTypes)">✚</button>
@@ -27,24 +50,14 @@
 					</tr>
 				</table>
 			</div>
-			<div class="col-md-6">
-				<button type="button" class="btn btn-primary" @click="genSql">Gen Sql</button>
-				<button type="button" class="btn btn-secondary" @click="reset">Reset</button>
-				<table class="table table-bordered">
-					<tr>
-						<td style="width: 20%">原始Sql</td>
-						<td><textarea class="form-control" v-model="oSqlCmd"></textarea></td>
-					</tr>
-					<tr>
-						<td>sql 參數</td>
-						<td><textarea class="form-control" v-model="oParams"></textarea></td>
-					</tr>
-				</table>
-			</div>
 		</div>
 		<div class="row justify-content-md-center">
 			<div class="card col-md-10">
-				<div class="card-header">Result</div>
+				<div class="card-header">SQL CMD RESULT
+				<button type="button" class="btn btn-info" @click="copy">複製結果</button></div>
+				<div class="card-footer">
+					<textarea class="form-control" ref="result" v-model="result"></textarea>
+				</div>
 				<div class="card-body">
 					<table class="table table-bordered">
 						<tr v-for="(item, index) in params">
@@ -52,9 +65,6 @@
 							<td><input class="form-control" v-model="params[index]"></td>
 						</tr>
 					</table>
-				</div>
-				<div class="card-footer">
-					<textarea class="form-control" v-model="result"></textarea>
 				</div>
 			</div>
 		</div>
@@ -118,7 +128,21 @@
 			},
 			addRow: function() {
 				this.dataTypes.push('');
-			}
+			},
+			copy: function() {
+			  /* Get the text field */
+			  var copyText = this.$refs.result;
+
+			  /* Select the text field */
+			  copyText.select();
+			  copyText.setSelectionRange(0, 99999); /* For mobile devices */
+
+			  /* Copy the text inside the text field */
+			  document.execCommand("copy");
+
+			  /* Alert the copied text */
+			  alert("Copied the text: " + copyText.value);
+			},
         },
         mounted: function() {
 			this.load();
