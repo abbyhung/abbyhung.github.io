@@ -100,8 +100,12 @@
 				
 				var tempResult = '';
 				vm.oSqlCmd.split('?').forEach(function(str, i) {
-					if(str.length > 0 && tempParams[i].length > 0)
+					if(str.length > 0 && i >= tempParams.length)
+						tempResult += str
+					else if(str.length > 0 && tempParams[i].length > 0)
 						tempResult += str + "'" + tempParams[i] + "'"
+					else if(str.length > 0 && tempParams[i].length == 0)
+						tempResult += str
 				});
 				vm.result = tempResult;
 			},
