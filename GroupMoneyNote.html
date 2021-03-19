@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+  <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+</head>
+<body>
+  <div id="app" style="left: 10px;">
+    <v-app id="inspire">	  
+      <v-form
+        ref="form"
+		v-show="!isEnter"
+      >
+      <v-text-field
+		  ref="name"
+		  v-model="name"
+		  label="暱稱"
+		  placeholder="想填什麼當代表，就填什麼"
+	  ></v-text-field>
+  
+      <v-text-field
+		v-model="password"
+		:append-icon="showPW ? 'mdi-eye' : 'mdi-eye-off'"
+		:type="showPW ? 'text' : 'password'"
+		name="input-10-1"
+		label="密碼"
+		placeholder="想填什麼當密碼，就填什麼"
+		hint="不限字數"
+		@click:append="showPW = !showPW"
+	  ></v-text-field>
+  
+      <v-btn
+        color="primary"
+		@click="enter"
+      >
+        Enter
+      </v-btn>
+    </v-form>
+    <v-card v-show="isEnter">
+      <v-toolbar
+        color="cyan"
+        dark
+        flat
+      > 
+        <v-toolbar-title>F3午餐飲料儲值系統</v-toolbar-title>
+  
+        <template v-slot:extension>
+          <v-tabs
+            v-model="tab"
+            align-with-title
+          >
+            <v-tabs-slider color="yellow"></v-tabs-slider>
+  
+            <v-tab
+              v-for="item in tabs"
+              :key="item.key"
+            >
+              {{ item.header }}
+            </v-tab>
+          </v-tabs>
+        </template>
+      </v-toolbar>
+  
+      <v-tabs-items v-model="tab">
+        <v-tab-item
+          v-for="item in tabs"
+          :key="item.key"
+        >
+          <v-card flat v-show="tab == 0">
+			 <v-card-text>
+				<div>當前餘額: {{remainAmt}}</div>
+			 </v-card-text>
+            <div>
+				<v-radio-group v-model="data.action" row>
+				  <v-radio
+					v-for="option in radioOptions"
+					:key="option.value"
+					:label="option.label"
+					:value="option.value"
+					></v-radio>
+				</v-radio-group>
+			    <v-text-field
+			   	  v-model="data.desc"
+			   	  label="描述"
+			   	  placeholder="團名跟品項說明"
+			    ></v-text-field>
+			    <v-text-field
+			   	  v-model="data.amt"
+			   	  label="金額"
+			   	  placeholder="請填入欲扣款或儲值的金額"
+				  type="number"
+			    ></v-text-field>
+				<v-btn
+				color="primary"
+				@click="enter"
+				>
+				Save
+				</v-btn>
+			</div>
+          </v-card>
+          <v-card flat v-show="tab == 1">
+			 <v-card-text>
+				<div>當前餘額: {{remainAmt}}</div>
+			 </v-card-text>
+             <v-data-table
+               :headers="headers"
+               :items="datalist"
+             ></v-data-table>
+          </v-card>
+        </v-tab-item>
+      </v-tabs-items>
+    </v-card>
+	<v-app>
+  </div>
+  <script>
+    var app = new Vue({
+      el: '#app',
+      vuetify: new Vuetify(),
+	  data: {
+	    loading: false,
+		name: '',
+		password: '',
+		showPW: false,
+		isEnter: false,
+		tab: 0,
+		tabs: [
+			{key: 1, header: '記帳'},
+			{key: 2, header: '明細'},
+		],
+		radioOptions: [
+			{value: 1, label: '扣款'},
+			{value: 2, label: '儲值'},
+		],
+		data: {
+			action: 1,
+			desc: '',
+			amt: 0,
+		},
+		headers: [
+			{ text: '日期', value: 'createDate' },
+			{ text: '動作', value: 'action' },
+			{ text: '描述', value: 'desc' },
+			{ text: '金額', value: 'amt' },
+		],
+		datalist: [],
+		remainAmt: 0,
+	  },
+	  methods: {
+		enter: function() {
+		  login();
+		},
+	  }
+    });
+
+function login() {
+  app.loading = true;
+  $.ajax({
+    // 這邊用get type
+    type: "get",
+    // api url - google appscript 產出的 url
+    url: "https://script.google.com/macros/s/AKfycbwEocY7It4w4kguXCd-JU8oibNFnL8bAUIIiUj35Hh2JbJpV0k79Q03JEbjjcNSFTsgRQ/exec",
+    // 剛剛整理好的資料帶入
+    data: {actionType: 'login', name: app.name, password: btoa(app.password)},
+    // 資料格式是JSON 
+    dataType: "JSON",
+    // 成功送出 會回頭觸發下面這塊感謝
+    success: function (response) {
+        app.loading = false;
+        this.isEnter = true;
+    }
+  });
+}
+
+  </script>
+</body>
+</html>
