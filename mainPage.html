@@ -71,7 +71,13 @@
         <v-row>
           <v-col cols="12">
             <v-card  height="70vh">
-              <v-subheader>圖片編輯<input type="file" accept="image/*" capture="camera" /></v-subheader>
+              <v-subheader>
+				  <v-file-input label="選擇圖片" 
+					      capture="user"
+						  accept="image/*"
+						  prepend-icon="mdi-camera"
+						  @change="imgChange"/>
+			  </v-subheader>
 				<v-row>
                   <v-col cols="10">
                   </v-col>
@@ -85,10 +91,10 @@
 					    <v-image :config="{image: image, width: width, height: height}"/>
 					  </v-layer>
 					  <v-layer ref="layer2">
-					    <v-rect v-for="item in shapes" v-if="item.isRect" :config="item" @transformend="handleTransformEnd"></v-rect>
-						<v-circle v-for="item in shapes" v-if="item.isCircle" :config="item" @transformend="handleTransformEnd"></v-circle>				
-						<v-arrow v-for="item in shapes" v-if="item.isArrow" :config="item" @transformend="handleTransformEnd"></v-arrow>
-						<v-text v-for="item in shapes" v-if="item.isText" :config="item" @transformend="handleTransformEnd"></v-text>
+					    <v-rect v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isRect" :key="index" :config="item" @transformend="handleTransformEnd"></v-rect>
+						<v-circle v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isCircle" :key="index" :config="item" @transformend="handleTransformEnd"></v-circle>				
+						<v-arrow v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isArrow" :key="index" :config="item" @transformend="handleTransformEnd"></v-arrow>
+						<v-text v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isText" :key="index" :config="item" @transformend="handleTransformEnd" @dblclick="textDbClick"></v-text>
 						<v-transformer ref="transformer" />
 					  </v-layer>
 					</v-stage>
@@ -117,6 +123,12 @@
 						<v-icon>mdi-content-save</v-icon>
 					</v-btn>
 					
+					<v-btn @click="save()" class="mx-2" fab small>
+						<v-icon>mdi-download</v-icon>
+					</v-btn>
+					
+					
+					
 					
                   </v-col>
                 </v-row>
@@ -138,8 +150,19 @@
 		vuetify: new Vuetify(
 		),
 		data: {
+		    cards: ['Today', 'Yesterday'],
+			drawer: null,
+			  links: [
+				['mdi-inbox-arrow-down', 'Inbox'],
+				['mdi-send', 'Send'],
+				['mdi-delete', 'Trash'],
+				['mdi-alert-octagon', 'Spam'],
+			],
+			mini: true,
+			rate: 1,
+			widthRate: 0.65,
 			width: 0,
-			heitht: 0,
+			height: 0,
 			configStage: {
 				width: this.width,
 				height: this.height
@@ -166,6 +189,7 @@
 				isCircle: false,
 				isArrow: false,
 				isText: true,
+				draggable: true,
 			},
 			rectConfig: {
 				rotation: 0,
@@ -219,8 +243,15 @@
 				isCircle: false,
 				isArrow: true,
 				isText: false,
+				draggable: true,
 			},
 			selectedShapeName: '',
+		},
+		watch: {
+			'mini': function() {
+				this.widthRate = 0.65;
+				this.resize();
+			}
 		},
 		methods: {
 			cloneObj: function(obj) {
@@ -276,6 +307,7 @@
 			handleStageMouseDown(e) {
 			  // clicked on stage - clear selection
 			  if (e.target === e.target.getStage()) {
+			  
 				this.selectedShapeName = '';
 				this.updateTransformer();
 				return;
@@ -320,17 +352,102 @@
 			  }
 			},
 			saveItem: function() {
-				localStorage.setItem('storage', JSON.stringify(this.shapes));
+				var vm = this;
+				vm.shapes.forEach(function(item, index){
+					var shape = vm.shapes[index];
+					var e = vm.$refs.layer2.getNode().children[index];
+					// update the state
+					shape.x = e.x();
+					shape.y = e.y();
+					shape.rotation = e.rotation();
+					shape.scaleX = e.scaleX();
+					shape.scaleY = e.scaleY();
+					shape.width = e.width();
+					shape.height = e.height();
+				});
+				localStorage.setItem('storage', JSON.stringify(vm.shapes));
 			},
 			loaded: function() {
 			    const data = localStorage.getItem('storage') || '[]';
 			    this.shapes = JSON.parse(data);
 			},
+			resize: function() {
+				var width = window.innerWidth * this.widthRate;
+				var height = window.innerHeight * 0.55;
+				
+				const img = new Image();
+				img.src = "02-xl.jpg";
+				img.onload = () => {
+				  // set image only when it is loaded
+				  var w, h;
+				  if(img.width > width) {
+					var rate = width / img.width;
+					w = img.width * rate;
+					h = img.height * rate;
+				  }
+				  if(h > height) {
+					var rate = height / img.height;
+					w = img.width * rate;
+					h = img.height * rate;
+				  }
+				  vue.width = w;
+				  vue.height = h;
+				  vue.image = img;
+				  vue.loaded();
+				};
+			},
+			textDbClick: function(e) {
+				console.log(e);
+			},
+			downloadURI(uri, name) {
+				var link = document.createElement('a');
+				link.download = name;
+				link.href = uri;
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				delete link;
+			},
+			save: function() {
+				var dataURL = vue.$refs.stage.getStage().toDataURL({ pixelRatio: 3 });
+				vue.downloadURI(dataURL, 'stage.png');
+			},
+			imgChange: function(e) {
+				var width = window.innerWidth * 0.65;
+				var height = window.innerHeight * 0.55;
+				
+				this.rate = window.innerWidth / 1920;
+				this.width = width;
+				this.height = height;
+				var URL = window.webkitURL || window.URL;
+				var url = URL.createObjectURL(e);
+				const img = new Image();
+				img.src = url;
+				img.onload = () => {
+				  // set image only when it is loaded
+				  if(img.width > width) {
+					var rate = width / img.width;
+					vue.width = img.width * rate;
+					vue.height = img.height * rate;
+				  }
+				  if(vue.height > height) {
+					var rate = height / img.height;
+					vue.width = img.width * rate;
+					vue.height = img.height * rate;
+				  }
+				  vue.image = img;
+				  vue.loaded();
+				};
+			},
 		},
 		mounted: function() {
 			var width = window.innerWidth * 0.65;
 			var height = window.innerHeight * 0.55;
-		
+			
+			this.rate = window.innerWidth / 1920;
+			this.width = width;
+			this.height = height;
+			
 			const img = new Image();
 			img.src = "02-xl.jpg";
 			img.onload = () => {
