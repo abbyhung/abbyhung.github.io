@@ -94,8 +94,8 @@
 					    <v-rect v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isRect" :key="index" :config="item" @transformend="handleTransformEnd"></v-rect>
 						<v-circle v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isCircle" :key="index" :config="item" @transformend="handleTransformEnd"></v-circle>				
 						<v-arrow v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isArrow" :key="index" :config="item" @transformend="handleTransformEnd"></v-arrow>
-						<v-text v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isText" :key="index" :config="item" @transformend="handleTransformEnd" @dblclick="textDbClick"></v-text>
-						<v-transformer ref="transformer" />
+						<v-text v-for="(item, index) in shapes" :ref="shapes + index" v-if="item.isText" :key="index" :config="item" @transformend="handleTransformEnd" @dblclick="textDbClick" @dbltap="textDbClick"></v-text>
+						<v-transformer ref="transformer" v-if="showTrans" />
 					  </v-layer>
 					</v-stage>
                   </v-col>
@@ -246,6 +246,9 @@
 				draggable: true,
 			},
 			selectedShapeName: '',
+			textarea: null,
+			showTrans: true,
+			selectedNode: null,
 		},
 		watch: {
 			'mini': function() {
@@ -306,8 +309,14 @@
 			},
 			handleStageMouseDown(e) {
 			  // clicked on stage - clear selection
+			  if(vue.textarea && e.target != vue.textarea) {
+				this.selectedShapeName = '';
+				
+				vue.removeTextarea();
+				this.updateTransformer();
+				return;
+			  }
 			  if (e.target === e.target.getStage()) {
-			  
 				this.selectedShapeName = '';
 				this.updateTransformer();
 				return;
@@ -323,12 +332,26 @@
 			  // find clicked rect by its name
 			  var name = e.target.name();
 			  
-			  var shape = this.findObject(name);
-			  if (shape) {
+			  var s = this.findObject(name);
+			  if (s) {
 				this.selectedShapeName = name;
 			  } else {
 				this.selectedShapeName = '';
 			  }
+			  
+			  var vm = this;
+			  vm.shapes.forEach(function(item, index){
+				var shape = vm.shapes[index];
+				var e = vm.$refs.layer2.getNode().children[index];
+				// update the state
+				shape.x = e.x();
+				shape.y = e.y();
+				shape.rotation = e.rotation();
+				shape.scaleX = e.scaleX();
+				shape.scaleY = e.scaleY();
+				shape.width = e.width();
+				shape.height = e.height();
+			  });
 			  this.updateTransformer();
 			},
 			updateTransformer() {
@@ -350,6 +373,7 @@
 				// remove transformer
 				transformerNode.nodes([]);
 			  }
+				
 			},
 			saveItem: function() {
 				var vm = this;
@@ -396,9 +420,123 @@
 				  vue.loaded();
 				};
 			},
-			textDbClick: function(e) {
-				console.log(e);
+			getPosition(obj, prop, getParent) {
+				if(getParent && obj.offsetParent == null) {
+					return 0;
+				} else {
+					return obj[prop] + this.getPosition(obj.offsetParent, prop, true);
+				}
 			},
+			textDbClick: function(e) {
+				//console.log(e);
+				var shape = this.findObject(this.selectedShapeName);
+				var index = this.shapes.indexOf(shape);
+				e = this.$refs.layer2.getNode().children[index];
+				var textNode = e;
+				var stage = vue.$refs.stage.getStage();
+				
+				var x = this.getPosition(stage.getContent(), 'offsetLeft') + shape.x;
+				var y = this.getPosition(stage.getContent(), 'offsetTop') + shape.y;
+				
+				vue.textarea = document.createElement('textarea');
+				var textarea = vue.textarea;
+				document.body.appendChild(textarea);
+				textarea.value = shape.text;
+				textarea.style.position = 'absolute';
+				textarea.style.top = y + 'px';
+				textarea.style.left = x + 'px';
+				textarea.style.width = textNode.width() - textNode.padding() * 2 + 'px';
+				textarea.style.height =
+				  textNode.height() - textNode.padding() * 2 + 5 + 'px';
+				textarea.style.fontSize = textNode.fontSize() + 'px';
+				textarea.style.border = 'none';
+				textarea.style.padding = '0px';
+				textarea.style.margin = '0px';
+				textarea.style.overflow = 'hidden';
+				textarea.style.background = 'none';
+				textarea.style.outline = 'none';
+				textarea.style.resize = 'none';
+				textarea.style.lineHeight = textNode.lineHeight();
+				textarea.style.fontFamily = textNode.fontFamily();
+				textarea.style.transformOrigin = 'left top';
+				textarea.style.textAlign = textNode.align();
+				textarea.style.color = textNode.fill();
+				rotation = textNode.rotation();
+				var transform = '';
+				if (rotation) {
+				  transform += 'rotateZ(' + rotation + 'deg)';
+				}
+
+				var px = 0;
+				// also we need to slightly move textarea on firefox
+				// because it jumps a bit
+				var isFirefox =
+				  navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+				if (isFirefox) {
+				  px += 2 + Math.round(textNode.fontSize() / 20);
+				}
+				transform += 'translateY(-' + px + 'px)';
+
+				textarea.style.transform = transform;
+
+				// reset height
+				textarea.style.height = 'auto';
+				// after browsers resized it we can set actual value
+				textarea.style.height = textarea.scrollHeight + 3 + 'px';
+
+				textarea.focus();
+				
+				textarea.addEventListener('keydown', function (e2) {
+				  // hide on enter
+				  // but don't hide on shift + enter
+				  if (e2.keyCode === 13 && !e2.shiftKey) {
+					textNode.text(textarea.value);
+					vue.removeTextarea();
+				  }
+				  // on esc do not set value back to node
+				  if (e2.keyCode === 27) {
+					vue.removeTextarea();
+				  }
+				});
+				
+				vue.selectedNode = shape;
+				
+				shape.isText = false;
+				//this.showTrans = false;
+			},
+			removeTextarea() {
+			  if(vue.textarea) {
+			    vue.selectedNode.text = vue.textarea.value;
+			  }
+			  vue.textarea.parentNode.removeChild(vue.textarea);
+			  vue.textarea = null;
+			  
+			  vue.selectedNode.isText = true;
+			  vue.updateTransformer();
+			},
+			setTextareaWidth(newWidth) {
+				if (!newWidth) {
+					// set width for placeholder
+					newWidth = textNode.placeholder.length * textNode.fontSize();
+				}
+				// some extra fixes on different browsers
+				var isSafari = /^((?!chrome|android).)*safari/i.test(
+					navigator.userAgent
+				);
+				var isFirefox =
+					navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+				if (isSafari || isFirefox) {
+					newWidth = Math.ceil(newWidth);
+				}
+
+				var isEdge =
+					document.documentMode || /Edge/.test(navigator.userAgent);
+				if (isEdge) {
+					newWidth += 1;
+				}
+				textarea.style.width = newWidth + 'px';
+			},
+
 			downloadURI(uri, name) {
 				var link = document.createElement('a');
 				link.download = name;
