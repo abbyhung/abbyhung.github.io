@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1,minimal-ui" name="viewport">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+	<link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+	<link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+	<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  </head>
+
+  <body>
+    <div id="app">
+		<v-app class="main">
+			<v-container>
+				<v-row>
+					<v-col cols="24" sm="12">
+						<v-text-field v-model="userId" label="帳號" clearable 
+							prepend-icon="mdi-account"
+							:rules="[rules.required]"
+						></v-text-field>
+					</v-col>
+				</v-row>
+				<v-row>
+					<v-col cols="24" sm="12">
+						<v-text-field 
+							prepend-icon="mdi-lock"
+							v-model="password"
+							:append-icon="show1 ? 'mdi-eye' : 'mdi-eye-off'"
+							:rules="[rules.required, rules.min]"
+							:type="show1 ? 'text' : 'password'"
+							label="密碼"
+							hint="至少8個字"
+							counter
+							@click:append="show1 = !show1"
+						  ></v-text-field>
+					</v-col>
+				</v-row>
+				<v-row>
+					<v-col>
+						<v-btn color="primary">登入
+						</v-btn>
+						<v-btn>註冊/忘記密碼
+						</v-btn>
+					</v-col>
+				</v-row>
+			</v-container>
+		</v-app>
+    </div>
+    <script>
+	Vue.use(Vuetify);
+	var vue = new Vue({
+        el: '#app',
+		vuetify: new Vuetify({
+		}),
+		data: {
+			userId: '',
+			password: '',
+			show1: true,
+			rules: {
+				required: value => !!value || 'Required.',
+				min: v => v.length >= 8 || '至少8個字',
+				emailMatch: () => ("The email and password you entered don't match"),
+			},
+		},
+    })
+    </script>
+	<style>
+		.main{
+			text-align: center;
+			background-color: #fff;
+			border-radius: 20px;
+			width: 300px;
+			height: 350px;
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			transform: translate(-50%,-50%);
+		}
+	</style>
+  </body>
+</html>

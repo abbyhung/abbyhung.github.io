@@ -1,0 +1,355 @@
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta content="width=device-width,initial-scale=1,minimal-ui" name="viewport">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+	<link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+	<link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+	<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+	
+	<link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <script src='https://unpkg.com/konva/konva.js'></script>
+    <script src='https://unpkg.com/vue-konva/umd/vue-konva.min.js'></script>
+  </head>
+
+  <body>
+    <div id="app"><v-app id="inspire">
+    <v-system-bar app>
+      <v-spacer></v-spacer>
+
+      <v-icon>mdi-square</v-icon>
+
+      <v-icon>mdi-circle</v-icon>
+
+      <v-icon>mdi-triangle</v-icon>
+    </v-system-bar>
+
+    <v-navigation-drawer
+      v-model="drawer" app absolute mini-variant expand-on-hover left :mini-variant.sync="mini" 
+      
+    >
+      <v-sheet
+        color="grey lighten-4"
+        class="pa-4"
+      >
+        <v-avatar
+          class="mb-4"
+          color="grey darken-1"
+          :size="mini ? 32 : 64"
+        ></v-avatar>
+
+        <div>{{mini ? 'john' : 'john@vuetifyjs.com'}}</div>
+      </v-sheet>
+
+      <v-divider></v-divider>
+
+      <v-list>
+        <v-list-item
+          v-for="[icon, text] in links"
+          :key="icon"
+          link
+        >
+          <v-list-item-icon>
+            <v-icon>{{ icon }}</v-icon>
+          </v-list-item-icon>
+
+          <v-list-item-content>
+            <v-list-item-title>{{ text }}</v-list-item-title>
+          </v-list-item-content>
+        </v-list-item>
+      </v-list>
+    </v-navigation-drawer>
+
+    <v-main>
+      <v-container
+        class="py-8 px-6"
+        fluid
+      >
+        <v-row>
+          <v-col cols="12">
+            <v-card  height="70vh">
+              <v-subheader>圖片編輯<input type="file" accept="image/*" capture="camera" /></v-subheader>
+				<v-row>
+                  <v-col cols="10">
+                  </v-col>
+                </v-row>
+				<v-row>
+                  <v-col cols="10">
+					<v-stage ref="stage" :config="{image: image, width: width, height: height}"
+						    @mousedown="handleStageMouseDown"
+							@touchstart="handleStageMouseDown" style="margin-left: 20px;">
+					  <v-layer ref="layer1">
+					    <v-image :config="{image: image, width: width, height: height}"/>
+					  </v-layer>
+					  <v-layer ref="layer2">
+					    <v-rect v-for="item in shapes" v-if="item.isRect" :config="item" @transformend="handleTransformEnd"></v-rect>
+						<v-circle v-for="item in shapes" v-if="item.isCircle" :config="item" @transformend="handleTransformEnd"></v-circle>				
+						<v-arrow v-for="item in shapes" v-if="item.isArrow" :config="item" @transformend="handleTransformEnd"></v-arrow>
+						<v-text v-for="item in shapes" v-if="item.isText" :config="item" @transformend="handleTransformEnd"></v-text>
+						<v-transformer ref="transformer" />
+					  </v-layer>
+					</v-stage>
+                  </v-col>
+                  <v-col cols="2">
+					<v-btn @click="addRect" class="mx-2" fab small>
+						<v-icon>mdi-rectangle-outline</v-icon>
+					</v-btn>
+					<v-btn @click="addCircle" class="mx-2" fab small>
+						<v-icon>mdi-circle-outline</v-icon>
+					</v-btn>
+					
+					<v-btn @click="addArrow" class="mx-2" fab small>
+						<v-icon>mdi-arrow-bottom-right</v-icon>
+					</v-btn>
+					
+					<v-btn @click="addText" class="mx-2" fab small>
+						<v-icon>mdi-alpha-t-box-outline</v-icon>
+					</v-btn>
+					
+					<v-btn @click="deleteItem()" class="mx-2" fab small>
+						<v-icon>mdi-trash-can-outline</v-icon>
+					</v-btn>
+					
+					<v-btn @click="saveItem()" class="mx-2" fab small>
+						<v-icon>mdi-content-save</v-icon>
+					</v-btn>
+					
+					
+                  </v-col>
+                </v-row>
+            </v-card>
+          </v-col>
+        </v-row>
+        <v-row>
+          <v-col cols="6">
+            
+          </v-col>
+        </v-row>
+      </v-container>
+    </v-main>
+  </v-app>
+    </div>
+    <script>
+	var vue = new Vue({
+        el: '#app',
+		vuetify: new Vuetify(
+		),
+		data: {
+			width: 0,
+			heitht: 0,
+			configStage: {
+				width: this.width,
+				height: this.height
+			},
+			configCircle: {
+				x: 100,
+				y: 100,
+				radius: 70,
+				fill: 'red',
+				stroke: 'black',
+				strokeWidth: 4
+			},
+			image: null,
+			shapes: [],
+			textConfig: {
+				name: 'text',
+				x: 100,
+				y: 100,
+				text: 'Simple Text',
+				fontSize: 24,
+				fontFamily: 'Calibri',
+				fill: 'red',
+				isRect: false,
+				isCircle: false,
+				isArrow: false,
+				isText: true,
+			},
+			rectConfig: {
+				rotation: 0,
+				x: 10,
+				y: 10,
+				width: 100,
+				height: 100,
+				scaleX: 1,
+				scaleY: 1,
+				fill: '',
+				name: 'rect',
+				draggable: true,
+				stroke: 'red',
+				strokeWidth: 2,
+				isRect: true,
+				isCircle: false,
+				isArrow: false,
+				isText: false,
+			},
+			circleConfig: {
+				rotation: 0,
+				x: 100,
+				y: 100,
+				width: 80,
+				height: 80,
+				scaleX: 1,
+				scaleY: 1,
+				radius: 70,
+				fill: '',
+				name: 'circle',
+				draggable: true,
+				stroke: 'red',
+				strokeWidth: 2,
+				isRect: false,
+				isCircle: true,
+				isArrow: false,
+				isText: false,
+			},
+			arrowConfig: {
+				name: 'arrow',
+				rotation: 0,
+				x: 100,
+				y: 100,
+				points: [0, 0, 80 / 2, 80 / 2],
+				pointerLength: 20,
+				pointerWidth: 20,
+				fill: 'red',
+				stroke: 'red',
+				strokeWidth: 2,
+				isRect: false,
+				isCircle: false,
+				isArrow: true,
+				isText: false,
+			},
+			selectedShapeName: '',
+		},
+		methods: {
+			cloneObj: function(obj) {
+				return JSON.parse(JSON.stringify(obj));
+			},
+			addRect: function() {
+				var rect = this.cloneObj(this.rectConfig);
+				rect.name += (this.shapes.length + 1);
+				this.shapes.push(rect);
+			},
+			addCircle: function() {
+				var circle = this.cloneObj(this.circleConfig);
+				circle.name += (this.shapes.length + 1);
+				this.shapes.push(circle);
+			},
+			addArrow: function() {
+				var arrow = this.cloneObj(this.arrowConfig);
+				arrow.name += (this.shapes.length + 1);
+				this.shapes.push(arrow);
+			},
+			addText: function() {
+				var text = this.cloneObj(this.textConfig);
+				text.name += (this.shapes.length + 1);
+				this.shapes.push(text);
+			},
+			findObject(name) {
+				var shape = this.shapes.find(
+					(r) => r.name === name
+				);
+				return shape;
+			},
+			deleteItem: function() {
+				if(this.selectedShapeName.length == 0) return;
+				var shape = this.findObject(this.selectedShapeName);
+				
+				var index = this.shapes.indexOf(shape);
+				this.shapes.splice(index, 1);
+				
+				this.selectedShapeName = '';
+				this.updateTransformer();
+			},
+			handleTransformEnd(e) {
+			  // shape is transformed, let us save new attrs back to the node
+			  // find element in our state
+			  var shape = this.findObject(this.selectedShapeName);
+			  // update the state
+			  shape.x = e.target.x();
+			  shape.y = e.target.y();
+			  shape.rotation = e.target.rotation();
+			  shape.scaleX = e.target.scaleX();
+			  shape.scaleY = e.target.scaleY();
+			},
+			handleStageMouseDown(e) {
+			  // clicked on stage - clear selection
+			  if (e.target === e.target.getStage()) {
+				this.selectedShapeName = '';
+				this.updateTransformer();
+				return;
+			  }
+
+			  // clicked on transformer - do nothing
+			  var clickedOnTransformer =
+				e.target.getParent().className === 'Transformer';
+			  if (clickedOnTransformer) {
+				return;
+			  }
+
+			  // find clicked rect by its name
+			  var name = e.target.name();
+			  
+			  var shape = this.findObject(name);
+			  if (shape) {
+				this.selectedShapeName = name;
+			  } else {
+				this.selectedShapeName = '';
+			  }
+			  this.updateTransformer();
+			},
+			updateTransformer() {
+			  // here we need to manually attach or detach Transformer node
+			  var transformerNode = this.$refs.transformer.getNode();
+			  var stage = transformerNode.getStage();
+			  var { selectedShapeName } = this;
+
+			  var selectedNode = stage.findOne('.' + selectedShapeName);
+			  // do nothing if selected node is already attached
+			  if (selectedNode === transformerNode.node()) {
+				return;
+			  }
+
+			  if (selectedNode) {
+				// attach to another node
+				transformerNode.nodes([selectedNode]);
+			  } else {
+				// remove transformer
+				transformerNode.nodes([]);
+			  }
+			},
+			saveItem: function() {
+				localStorage.setItem('storage', JSON.stringify(this.shapes));
+			},
+			loaded: function() {
+			    const data = localStorage.getItem('storage') || '[]';
+			    this.shapes = JSON.parse(data);
+			},
+		},
+		mounted: function() {
+			var width = window.innerWidth * 0.65;
+			var height = window.innerHeight * 0.55;
+		
+			const img = new Image();
+			img.src = "02-xl.jpg";
+			img.onload = () => {
+			  // set image only when it is loaded
+			  if(img.width > width) {
+				var rate = width / img.width;
+				vue.width = img.width * rate;
+				vue.height = img.height * rate;
+			  }
+			  if(img.height > height) {
+				var rate = height / img.height;
+				vue.width = img.width * rate;
+				vue.height = img.height * rate;
+			  }
+			  vue.image = img;
+			  vue.loaded();
+			};
+		},
+    })
+    </script>
+  </body>
+</html>
