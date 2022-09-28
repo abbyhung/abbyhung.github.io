@@ -4,94 +4,118 @@
 
 <script src="https://unpkg.com/element-ui/lib/index.js"></script>
 <div id="app">
-  row:
-  <el-select v-model="row" size="mini" @change="pushRow(row)">
-    <el-option v-for="n in 12" :key="n" :label="n" :value="n"></el-option>
-  </el-select>
-  col:
-  <el-select v-model="col" size="mini" @change="pushCol(row, col)">
-    <el-option v-for="n in 16" :key="n" :label="n" :value="n"></el-option>
-  </el-select>
-  <table border="1">
-    <tr v-for="y1 in row">
-      <td v-for="x1 in col">
-        <el-button size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
-			:circle="list[y1-1][x1-1].circle"
-			:icon="list[y1-1][x1-1].icon1" style="padding: 7px"></el-button>
-      </td>
-    </tr>
-  </table>
+	<el-row>
+		<el-col :span="12">
+			<div class="grid-content bg-purple-light">
+				<table border="1">
+					<tr>
+						<td :colspan="col">
+							規劃區
+						</td>
+					</tr>
+					
+					<tr v-for="y1 in row">
+						<td v-for="x1 in col" @click="setColor(x1, y1)" :bgcolor="list[y1-1][x1-1].bgcolor" style="width: 30px; height: 30px;">
+							<el-button v-if="!areaA && !areaB" size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
+								:circle="list[y1-1][x1-1].circle"
+							:icon="list[y1-1][x1-1].icon1" style="padding: 7px"></el-button>
+						</td>
+					</tr>
+				</table>
+			</div>
+		</el-col>
+		<el-col :span="12">
+			<div class="grid-content bg-purple-light">
+				<table border="1">
+					<tr>
+						<td colspan="4">區塊上色(按下switch開始點選左方表格，要一格一格點，尚不支援拖曳)</td>
+					</tr>
+					<tr>
+						<td colspan="2">
+							<el-switch style="display: block" v-model="areaA" active-color="#8671e3" inactive-color="#e8e4e3" active-text="上色中" inactive-text=""
+								@change="nowColor='#8671e3'"></el-switch>
+						</td>
+						<td colspan="2">
+							<el-switch style="display: block" v-model="areaB" active-color="#42f5e9" inactive-color="#e8e4e3" active-text="上色中" inactive-text=""
+								@change="nowColor='#42f5e9'"></el-switch>
+						</td>
+					</tr>
+					<tr>
+					  <td>
+						<el-button size="mini" type="danger" icon="el-icon-caret-right" circle></el-button>傳送攪拌器
+					  </td>
+					  <td>
+						<el-button size="mini" type="warning" icon="el-icon-caret-right" circle></el-button>組合器
+					  </td>
+					  <td>
+						<el-button size="mini" type="success" icon="el-icon-caret-right" circle></el-button>自動擺盤架
+					  </td>
+					  <td>
+						<el-button size="mini" type="primary" icon="el-icon-caret-right" circle></el-button>冰淇淋挖勺
+					  </td>
+					</tr>
+					<tr>
+					  <td>
+						<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"
+							></el-button>智慧抓取器
+					  </td>
+					  <td>
+						<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"
+							></el-button>抓取器
+					  </td>
+					  <td>
+						<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"
+							></el-button>傳送帶
+					  </td>
+					</tr>
+					<tr>
+					  <td>
+						<el-button size="mini" type="primary" icon="el-icon-menu" style="padding: 7px"
+							></el-button>4格冰箱
+					  </td>
+					  <td>
+						<el-button size="mini" type="primary" icon="el-icon-full-screen" style="padding: 7px"></el-button>冷凍庫
+					  </td>
+					  <td>
+						<el-button size="mini" type="success" icon="el-icon-receiving" style="padding: 7px"></el-button>流理台
+					  </td>
+					</tr>
+					<tr>
+					  <td>
+						<el-button size="mini" type="success" icon="el-icon-dish" circle></el-button>4/8盤子架
+					  </td>
+					  <td>
+						<el-button size="mini" type="danger" icon="el-icon-dish-1" circle></el-button>髒盤架
+					  </td>
+					  <td>
+						<el-button size="mini" type="success" icon="el-icon-data-board" circle></el-button>洗碗槽
+					  </td>
+					  <td>
+						<el-button size="mini" type="primary" icon="el-icon-takeaway-box" circle></el-button>浸泡槽
+					  </td>
+					</tr>
+					<tr>
+					  <td>
+						<el-button size="mini" type="success" icon="el-icon-aim" circle></el-button>安全瓦斯爐
+					  </td>
+					  <td>
+						<el-button size="mini" type="danger" icon="el-icon-aim" circle></el-button>高危瓦斯爐
+					  </td>
+					  <td>
+						<el-button size="mini" type="warning" icon="el-icon-coordinate" circle></el-button>加熱攪拌器
+					  </td>
+					  <td>
+						<el-button size="mini" type="danger" icon="el-icon-coordinate" circle></el-button>疾速攪拌器
+					  </td>
+					</tr>
+				  </table>
+			</div>
+		</el-col>
+	</el-row>
+
+
   
-  <table border="1">
-	<tr>
-	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-caret-right" circle></el-button>傳送攪拌器
-	  </td>
-	  <td>
-		<el-button size="mini" type="warning" icon="el-icon-caret-right" circle></el-button>組合器
-	  </td>
-	  <td>
-		<el-button size="mini" type="success" icon="el-icon-caret-right" circle></el-button>自動擺盤架
-	  </td>
-	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-caret-right" circle></el-button>冰淇淋挖勺
-	  </td>
-	</tr>
-	<tr>
-	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"
-			></el-button>智慧抓取器
-	  </td>
-	  <td>
-		<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"
-			></el-button>抓取器
-	  </td>
-	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"
-			></el-button>傳送帶
-	  </td>
-	</tr>
-	<tr>
-	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-menu" style="padding: 7px"
-			></el-button>4格冰箱
-	  </td>
-	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-full-screen" style="padding: 7px"></el-button>冷凍庫
-	  </td>
-	  <td>
-		<el-button size="mini" type="success" icon="el-icon-receiving" style="padding: 7px"></el-button>流理台
-	  </td>
-	</tr>
-	<tr>
-	  <td>
-		<el-button size="mini" type="success" icon="el-icon-dish" circle></el-button>4/8盤子架
-	  </td>
-	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-dish-1" circle></el-button>髒盤架
-	  </td>
-	  <td>
-		<el-button size="mini" type="success" icon="el-icon-data-board" circle></el-button>洗碗槽
-	  </td>
-	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-takeaway-box" circle></el-button>浸泡槽
-	  </td>
-	</tr>
-	<tr>
-	  <td>
-		<el-button size="mini" type="success" icon="el-icon-aim" circle></el-button>安全瓦斯爐
-	  </td>
-	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-aim" circle></el-button>高危瓦斯爐
-	  </td>
-	  <td>
-		<el-button size="mini" type="warning" icon="el-icon-coordinate" circle></el-button>加熱攪拌器
-	  </td>
-	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-coordinate" circle></el-button>疾速攪拌器
-	  </td>
-	</tr>
-  </table>
+  
   
   <el-dialog title="選擇項目" :visible="visible" width="30%" :show-close="!visible">
   選擇方向()：<el-select size="mini" v-model="direction">
@@ -102,6 +126,10 @@
 				</el-select>
   <el-button size="mini" type="info" icon="el-icon-minus" @click="changeIcon('el-icon-minus', 'info', '', x, y, true)">Reset</el-button>
   <table border="1">
+	
+	<tr>
+	</tr>
+  
 	<tr>
 	  <td>
 		<el-button size="mini" type="danger" icon="el-icon-caret-right" 
@@ -193,11 +221,14 @@ var vue = new Vue({
 	data: {
 		row: 1,
 		col: 1,
-		list: [[{type1: 'info', icon1: 'el-icon-minus', circle: true}]],
+		list: [[{type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: ''}]],
 		direction: 'right',
 		visible: false,
 		x: 0,
 		y: 0,
+		nowColor: '',
+		areaA: false,
+		areaB: false,
 	},
 	methods: {
 		getVal: function(x, y, field){
@@ -220,7 +251,7 @@ var vue = new Vue({
 			var vm = this;
 			vm.list = [[{type1: 'info', icon1: 'el-icon-minus'}]];
 			for (let i = 0; i < y; i++) {
-				var temp = [{type1: 'info', icon1: 'el-icon-minus', circle: true}];
+				var temp = [{type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: ''}];
 			    vm.list.push(temp);
 			}
 		},
@@ -230,14 +261,21 @@ var vue = new Vue({
 			for (let i = 0; i < y; i++) {
 				var temp = [];
 				for (let j = 0; j < x; j++) {
-					temp.push({type1: 'info', icon1: 'el-icon-minus', circle: true});
+					temp.push({type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: ''});
 				}
 				vm.list.push(temp);					
 			}
 		},
+		setColor: function(x, y) {
+			var vm = this;
+			vm.list[y - 1][x - 1].bgcolor = vm.nowColor;
+		}
 		
 	},
 	mounted: function() {
+		this.row = 12;
+		this.col = 16;
+		this.pushCol(12, 16);
 	},
 })
 </script>
