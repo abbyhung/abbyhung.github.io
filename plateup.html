@@ -5,7 +5,7 @@
 <script src="https://unpkg.com/element-ui/lib/index.js"></script>
 <div id="app">
 	<el-row>
-		<el-col :span="12">
+		<el-col :span="8">
 			<div class="grid-content bg-purple-light">
 				<table border="1">
 					<tr>
@@ -16,7 +16,7 @@
 					
 					<tr v-for="y1 in row">
 						<td v-for="x1 in col" @click="setColor(x1, y1)" :bgcolor="list[y1-1][x1-1].bgcolor" style="width: 30px; height: 30px;">
-							<el-button v-if="!areaA && !areaB" size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
+							<el-button v-if="!areaA && !areaB && !areaDo && !areaDa" size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
 								:circle="list[y1-1][x1-1].circle"
 							:icon="list[y1-1][x1-1].icon1" style="padding: 7px"></el-button>
 						</td>
@@ -24,11 +24,22 @@
 				</table>
 			</div>
 		</el-col>
-		<el-col :span="12">
+		<el-col :span="16">
 			<div class="grid-content bg-purple-light">
 				<table border="1">
 					<tr>
 						<td colspan="4">區塊上色(按下switch開始點選左方表格，要一格一格點，尚不支援拖曳)</td>
+					</tr>
+					<tr>
+						<td colspan="2">
+							<el-switch style="display: block" v-model="areaDo" active-color="#edad24" inactive-color="#e8e4e3" active-text="標識門"
+								@change="nowColor=areaDo ? '#edad24': nowColor;"></el-switch>
+						</td>
+						<td colspan="2">
+							<el-switch style="display: block" v-model="areaDa" active-color="#e874b4" inactive-color="#e8e4e3" active-text="標識出餐口"
+								inactive-text=""
+								@change="nowColor=areaDa ? '#e874b4': nowColor"></el-switch>
+						</td>
 					</tr>
 					<tr>
 						<td colspan="2">
@@ -229,6 +240,8 @@ var vue = new Vue({
 		nowColor: '',
 		areaA: false,
 		areaB: false,
+		areaDo: false,
+		areaDa: false,
 	},
 	methods: {
 		getVal: function(x, y, field){
