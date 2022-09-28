@@ -15,7 +15,9 @@
   <table border="1">
     <tr v-for="y1 in row">
       <td v-for="x1 in col">
-        <el-button size="mini" @click="x=x1; y=y1; visible=true" circle :type="getVal(x1, y1, 'type1')" :icon="list[y1-1][x1-1].icon1"></el-button>
+        <el-button size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
+			:circle="list[y1-1][x1-1].circle"
+			:icon="list[y1-1][x1-1].icon1" style="padding: 7px"></el-button>
       </td>
     </tr>
   </table>
@@ -23,95 +25,82 @@
   <table border="1">
 	<tr>
 	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-caret-right" 
-			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y)" circle></el-button>傳送攪拌器
+		<el-button size="mini" type="danger" icon="el-icon-caret-right" circle></el-button>傳送攪拌器
 	  </td>
 	  <td>
-		<el-button size="mini" type="warning" icon="el-icon-caret-right" circle
-			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y)"></el-button>組合器
+		<el-button size="mini" type="warning" icon="el-icon-caret-right" circle></el-button>組合器
 	  </td>
 	  <td>
-		<el-button size="mini" type="success" icon="el-icon-caret-right" circle
-			@click="changeIcon('el-icon-caret-', 'success', direction, x, y)"></el-button>自動擺盤架
+		<el-button size="mini" type="success" icon="el-icon-caret-right" circle></el-button>自動擺盤架
 	  </td>
 	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-caret-right" circle
-			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y)"></el-button>冰淇淋挖勺
+		<el-button size="mini" type="primary" icon="el-icon-caret-right" circle></el-button>冰淇淋挖勺
 	  </td>
 	</tr>
 	<tr>
 	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-caret-right"
-			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y)"></el-button>智慧抓取器
+		<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"
+			></el-button>智慧抓取器
 	  </td>
 	  <td>
-		<el-button size="mini" type="warning" icon="el-icon-caret-right"
-			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y)"></el-button>抓取器
+		<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"
+			></el-button>抓取器
 	  </td>
 	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-caret-right"
-			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y)"></el-button>傳送帶
-	  </td>
-	</tr>
-	<tr>
-	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-menu" circle
-			@click="changeIcon('el-icon-menu', 'primary', '', x, y)"></el-button>4格冰箱
-	  </td>
-	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-full-screen" circle
-			@click="changeIcon('el-icon-full-screen', 'primary', '', x, y)"></el-button>冷凍庫
-	  </td>
-	  <td>
-		<el-button size="mini" type="success" icon="el-icon-receiving" circle
-			@click="changeIcon('el-icon-receiving', 'success', '', x, y)"></el-button>流理台
+		<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"
+			></el-button>傳送帶
 	  </td>
 	</tr>
 	<tr>
 	  <td>
-		<el-button size="mini" type="success" icon="el-icon-dish" circle
-			@click="changeIcon('el-icon-dish', 'success', '', x, y)"></el-button>4/8盤子架
+		<el-button size="mini" type="primary" icon="el-icon-menu" style="padding: 7px"
+			></el-button>4格冰箱
 	  </td>
 	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-dish-1" circle
-			@click="changeIcon('el-icon-dish-1', 'danger', '', x, y)"></el-button>髒盤架
+		<el-button size="mini" type="primary" icon="el-icon-full-screen" style="padding: 7px"></el-button>冷凍庫
 	  </td>
 	  <td>
-		<el-button size="mini" type="success" icon="el-icon-data-board" circle
-			@click="changeIcon('el-icon-data-board', 'success', '', x, y)"></el-button>洗碗槽
-	  </td>
-	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-takeaway-box" circle
-			@click="changeIcon('el-icon-takeaway-box', 'primary', '', x, y)"></el-button>浸泡槽
+		<el-button size="mini" type="success" icon="el-icon-receiving" style="padding: 7px"></el-button>流理台
 	  </td>
 	</tr>
 	<tr>
 	  <td>
-		<el-button size="mini" type="success" icon="el-icon-aim" circle
-			@click="changeIcon('el-icon-aim', 'success', '', x, y)"></el-button>安全瓦斯爐
+		<el-button size="mini" type="success" icon="el-icon-dish" circle></el-button>4/8盤子架
 	  </td>
 	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-aim" circle
-			@click="changeIcon('el-icon-aim', 'danger', '', x, y)"></el-button>高危瓦斯爐
+		<el-button size="mini" type="danger" icon="el-icon-dish-1" circle></el-button>髒盤架
 	  </td>
 	  <td>
-		<el-button size="mini" type="warning" icon="el-icon-coordinate" circle
-			@click="changeIcon('el-icon-coordinate', 'warning', '', x, y)"></el-button>加熱攪拌器
+		<el-button size="mini" type="success" icon="el-icon-data-board" circle></el-button>洗碗槽
 	  </td>
 	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-coordinate" circle
-			@click="changeIcon('el-icon-coordinate', 'danger', '', x, y)"></el-button>疾速攪拌器
+		<el-button size="mini" type="primary" icon="el-icon-takeaway-box" circle></el-button>浸泡槽
+	  </td>
+	</tr>
+	<tr>
+	  <td>
+		<el-button size="mini" type="success" icon="el-icon-aim" circle></el-button>安全瓦斯爐
+	  </td>
+	  <td>
+		<el-button size="mini" type="danger" icon="el-icon-aim" circle></el-button>高危瓦斯爐
+	  </td>
+	  <td>
+		<el-button size="mini" type="warning" icon="el-icon-coordinate" circle></el-button>加熱攪拌器
+	  </td>
+	  <td>
+		<el-button size="mini" type="danger" icon="el-icon-coordinate" circle></el-button>疾速攪拌器
 	  </td>
 	</tr>
   </table>
   
-  <el-dialog title="選擇項目" :visible.sync="visible" width="30%">
+  <el-dialog title="選擇項目" :visible="visible" width="30%" :show-close="!visible">
   選擇方向()：<el-select size="mini" v-model="direction">
 			      <el-option label="上" value="top"></el-option>
 				  <el-option label="下" value="bottom"></el-option>
 				  <el-option label="左" value="left"></el-option>
 				  <el-option label="右" value="right"></el-option>
 				</el-select>
+  <el-button size="mini" type="info" icon="el-icon-minus" @click="changeIcon('el-icon-minus', 'info', '', x, y, true)">Reset</el-button>
   <table border="1">
 	<tr>
 	  <td>
@@ -133,30 +122,30 @@
 	</tr>
 	<tr>
 	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-caret-right"
-			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y)"></el-button>智慧抓取器
+		<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"
+			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y, false)"></el-button>智慧抓取器
 	  </td>
 	  <td>
-		<el-button size="mini" type="warning" icon="el-icon-caret-right"
-			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y)"></el-button>抓取器
+		<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"
+			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y), false"></el-button>抓取器
 	  </td>
 	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-caret-right"
-			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y)"></el-button>傳送帶
+		<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"
+			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y, false)"></el-button>傳送帶
 	  </td>
 	</tr>
 	<tr>
 	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-menu" circle
-			@click="changeIcon('el-icon-menu', 'primary', '', x, y)"></el-button>4格冰箱
+		<el-button size="mini" type="primary" icon="el-icon-menu" style="padding: 7px"
+			@click="changeIcon('el-icon-menu', 'primary', '', x, y, false)"></el-button>4格冰箱
 	  </td>
 	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-full-screen" circle
-			@click="changeIcon('el-icon-full-screen', 'primary', '', x, y)"></el-button>冷凍庫
+		<el-button size="mini" type="primary" icon="el-icon-full-screen" style="padding: 7px"
+			@click="changeIcon('el-icon-full-screen', 'primary', '', x, y, false)"></el-button>冷凍庫
 	  </td>
 	  <td>
-		<el-button size="mini" type="success" icon="el-icon-receiving" circle
-			@click="changeIcon('el-icon-receiving', 'success', '', x, y)"></el-button>流理台
+		<el-button size="mini" type="success" icon="el-icon-receiving" style="padding: 7px"
+			@click="changeIcon('el-icon-receiving', 'success', '', x, y, false)"></el-button>流理台
 	  </td>
 	</tr>
 	<tr>
@@ -202,9 +191,9 @@
 var vue = new Vue({
 	el: '#app',
 	data: {
-		row: 1,
-		col: 1,
-		list: [[{type1: 'info', icon1: 'el-icon-minus'}]],
+		row: 12,
+		col: 16,
+		list: [[{type1: 'info', icon1: 'el-icon-minus', circle: true}]],
 		direction: 'right',
 		visible: false,
 		x: 0,
@@ -214,19 +203,24 @@ var vue = new Vue({
 		getVal: function(x, y, field){
 			return this.list[y - 1][x - 1][field];
 		},
-		changeIcon: function(icon, type, direction, x, y) {
+		changeIcon: function(icon, type, direction, x, y, circle) {
 			var vm = this;
 			this.visible = false;
 			vm.$nextTick(function () {
 				vm.list[y - 1][x - 1].type1 = type;
 				vm.list[y - 1][x - 1].icon1 = icon + direction;
+				if(circle != undefined) {
+					vm.list[y - 1][x - 1].circle = circle;
+				} else {
+					vm.list[y - 1][x - 1].circle = true;
+				}
 			});
 		},
 		pushRow: function(y) {
 			var vm = this;
 			vm.list = [[{type1: 'info', icon1: 'el-icon-minus'}]];
 			for (let i = 0; i < y; i++) {
-				var temp = [{type1: 'info', icon1: 'el-icon-minus'}];
+				var temp = [{type1: 'info', icon1: 'el-icon-minus', circle: true}];
 			    vm.list.push(temp);
 			}
 		},
@@ -236,7 +230,7 @@ var vue = new Vue({
 			for (let i = 0; i < y; i++) {
 				var temp = [];
 				for (let j = 0; j < x; j++) {
-					temp.push({type1: 'info', icon1: 'el-icon-minus'});
+					temp.push({type1: 'info', icon1: 'el-icon-minus', circle: true});
 				}
 				vm.list.push(temp);					
 			}
