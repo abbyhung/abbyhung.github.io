@@ -263,19 +263,19 @@
   
   
   <el-dialog title="選擇項目" :visible.sync="visible" width="30%" :show-close="!visible">
-  選擇方向*：<el-select size="mini" v-model="direction">
+  <el-button size="mini" type="info" icon="el-icon-minus" @click="changeIcon('el-icon-minus', 'info', '', x, y, true)">Reset</el-button>
+  <el-button size="mini" type="danger" icon="el-icon-close" @click="visible=false">Close</el-button>
+  <table class="table table-bordered">
+	<tr>
+	  <td colspan="4">
+		<el-select size="mini" v-model="direction">
 			      <el-option label="上" value="top"></el-option>
 				  <el-option label="下" value="bottom"></el-option>
 				  <el-option label="左" value="left"></el-option>
 				  <el-option label="右" value="right"></el-option>
-				</el-select>
-  <el-button size="mini" type="info" icon="el-icon-minus" @click="changeIcon('el-icon-minus', 'info', '', x, y, true)">Reset</el-button>
-  <el-button size="mini" type="danger" icon="el-icon-close" @click="visible=false">Close</el-button>
-  <table class="table table-bordered>
-	
-	<tr>
+				</el-select>選擇方向*
+	  </td>
 	</tr>
-  
 	<tr>
 	  <td>
 		<el-button size="mini" type="danger" icon="el-icon-caret-right" 
