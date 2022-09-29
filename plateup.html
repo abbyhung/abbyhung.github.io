@@ -25,7 +25,7 @@
 							@mouseover.prevent="setColor(x1, y1)"
 							@mouseup.prevent="canSetColor = false"
 							>
-							<el-button v-if="!areaA && !areaB && !areaDo && !areaDa" size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
+							<el-button v-if="!areaA && !areaB && !areaDo && !areaDa && !areaClear" size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
 								:circle="list[y1-1][x1-1].circle"
 							:icon="list[y1-1][x1-1].icon1" style="padding: 7px"></el-button>
 							<div v-else style="width:30px;height:30px"></div>
@@ -64,6 +64,16 @@
 							<el-switch style="display: block" v-model="areaB" active-color="#42f5e9" inactive-color="#e8e4e3" active-text="上色中"
 								inactive-text=""
 								@change="nowColor=areaB ? '#42f5e9': nowColor"></el-switch>
+						</td>
+					</tr>
+					<tr >
+						<td width="30px">
+						</td>
+						<td>
+							<el-switch style="display: block" v-model="areaClear" active-color="#000000" inactive-color="#e8e4e3" active-text="上色清除"
+								@change="nowColor=areaClear ? '': nowColor;"></el-switch>
+						</td>
+						<td colspan="6">
 						</td>
 					</tr>
 					<tr>
@@ -417,6 +427,7 @@ var vue = new Vue({
 		areaDo: false,
 		areaDa: false,
 		canSetColor: false,
+		areaClear: false,
 		input: ['','','','','','','','','','','','','','','','','',]
 	},
 	methods: {
@@ -458,7 +469,7 @@ var vue = new Vue({
 		setColor: function(x, y) {
 			var vm = this;
 			if(!vm.canSetColor) return;
-			if(vm.areaA || vm.areaB || vm.areaDo || vm.areaDa)
+			if(vm.areaA || vm.areaB || vm.areaDo || vm.areaDa || vm.areaClear)
 				vm.list[y - 1][x - 1].bgcolor = vm.nowColor;
 		}
 		
