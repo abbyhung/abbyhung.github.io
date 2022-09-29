@@ -27,6 +27,7 @@
 							>
 							<el-button v-if="!areaA && !areaB && !areaDo && !areaDa && !areaClear" size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
 								:circle="list[y1-1][x1-1].circle"
+								:plain="list[y1-1][x1-1].plain"
 							:icon="list[y1-1][x1-1].icon1" style="padding: 7px"></el-button>
 							<div v-else style="width:30px;height:30px"></div>
 						</td>
@@ -107,19 +108,19 @@
 					</tr>
 					<tr >
 						<td width="30px">
-							<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"></el-button>
+							<el-button size="mini" type="info" icon="el-icon-caret-right" style="padding: 7px" plain></el-button>
 						</td>
 						<td>
 							智慧抓取器
 						</td>
 						<td width="30px">
-							<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"></el-button>
+							<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px" plain></el-button>
 						</td>
 						<td>
 							抓取器
 						</td>
 						<td width="30px">
-							<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"></el-button>
+							<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px" plain></el-button>
 						</td>
 						<td>
 							傳送帶
@@ -306,16 +307,16 @@
 	</tr>
 	<tr>
 	  <td>
-		<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"
-			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y, false)"></el-button>智慧抓取器*
+		<el-button size="mini" type="info" icon="el-icon-caret-right" style="padding: 7px" plain
+			@click="setPlain = true; changeIcon('el-icon-caret-', 'info', direction, x, y, false)"></el-button>智慧抓取器*
 	  </td>
 	  <td>
-		<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"
-			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y, false)"></el-button>抓取器*
+		<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px" plain
+			@click="setPlain = true; changeIcon('el-icon-caret-', 'warning', direction, x, y, false)"></el-button>抓取器*
 	  </td>
 	  <td>
-		<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"
-			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y, false)"></el-button>傳送帶*
+		<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px" plain
+			@click="setPlain = true; changeIcon('el-icon-caret-', 'primary', direction, x, y, false)"></el-button>傳送帶*
 	  </td>
 	</tr>
 	<tr>
@@ -416,7 +417,7 @@ var vue = new Vue({
 	data: {
 		row: 1,
 		col: 1,
-		list: [[{type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: ''}]],
+		list: [[{type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: '', plain: false}]],
 		direction: 'right',
 		visible: false,
 		x: 0,
@@ -428,7 +429,8 @@ var vue = new Vue({
 		areaDa: false,
 		canSetColor: false,
 		areaClear: false,
-		input: ['','','','','','','','','','','','','','','','','',]
+		input: ['','','','','','','','','','','','','','','','','',],
+		setPlain: false,
 	},
 	methods: {
 		getVal: function(x, y, field){
@@ -445,13 +447,16 @@ var vue = new Vue({
 				} else {
 					vm.list[y - 1][x - 1].circle = true;
 				}
+				vm.list[y - 1][x - 1].plain = vm.setPlain;
+				
+				vm.setPlain = false;
 			});
 		},
 		pushRow: function(y) {
 			var vm = this;
 			vm.list = [[{type1: 'info', icon1: 'el-icon-minus'}]];
 			for (let i = 0; i < y; i++) {
-				var temp = [{type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: ''}];
+				var temp = [{type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: '', plain: false}];
 			    vm.list.push(temp);
 			}
 		},
@@ -461,7 +466,7 @@ var vue = new Vue({
 			for (let i = 0; i < y; i++) {
 				var temp = [];
 				for (let j = 0; j < x; j++) {
-					temp.push({type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: ''});
+					temp.push({type1: 'info', icon1: 'el-icon-minus', circle: true, bgcolor: '', plain: false});
 				}
 				vm.list.push(temp);					
 			}
