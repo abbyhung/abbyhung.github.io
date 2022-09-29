@@ -1,13 +1,17 @@
-<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.2.1/vue.js"></script>
+<!-- CSS only -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-iYQeCzEYFbKjA/T2uDLTpkwGzCiq6soy8tYaI1GyVh/UjpbCx/TYkiZhlZB6+fzT" crossorigin="anonymous">
 
-<link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+<!-- JavaScript Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-u1OknCvxWvY5kfmNBILK2hRnQC3Pr17a+RTT6rIHI7NnikvbZlHgTPOOmMi466C8" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/vue@2.2.1/dist/vue.js"></script>
 
-<script src="https://unpkg.com/element-ui/lib/index.js"></script>
-<div id="app">
-	<el-row>
-		<el-col :span="8">
-			<div class="grid-content bg-purple-light">
-				<table border="1">
+<link rel="stylesheet" href="https://unpkg.com/element-ui@2.15.2/lib/theme-chalk/index.css">
+
+<script src="https://unpkg.com/element-ui@2.15.2/lib/index.js"></script>
+<div id="app" class="">
+  <div class="row">
+    <div class="col">
+      <table class="table table-bordered border-primary">
 					<tr>
 						<td :colspan="col">
 							規劃區
@@ -15,127 +19,257 @@
 					</tr>
 					
 					<tr v-for="y1 in row">
-						<td v-for="x1 in col" @click="setColor(x1, y1)" :bgcolor="list[y1-1][x1-1].bgcolor" style="width: 30px; height: 30px;">
+						<td v-for="x1 in col"
+							:style="'background-color: ' + list[y1-1][x1-1].bgcolor"
+							@mousedown.prevent="canSetColor = true;setColor(x1, y1)"
+							@mouseover.prevent="setColor(x1, y1)"
+							@mouseup.prevent="canSetColor = false"
+							>
 							<el-button v-if="!areaA && !areaB && !areaDo && !areaDa" size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
 								:circle="list[y1-1][x1-1].circle"
 							:icon="list[y1-1][x1-1].icon1" style="padding: 7px"></el-button>
 						</td>
 					</tr>
 				</table>
-			</div>
-		</el-col>
-		<el-col :span="16">
-			<div class="grid-content bg-purple-light">
-				<table border="1">
+    </div>
+    <div class="col">
+      <table class="table table-bordered border-primary">
 					<tr>
-						<td colspan="4">區塊上色(按下switch開始點選左方表格，要一格一格點，尚不支援拖曳)</td>
+						<td colspan="8">區塊上色(按下switch開始點選規劃區表格)</td>
 					</tr>
-					<tr>
-						<td colspan="2">
-							<el-switch style="display: block" v-model="areaDo" active-color="#edad24" inactive-color="#e8e4e3" active-text="標識門"
+					<tr >
+						<td width="30px" style="background-color: #edad24">
+						</td>
+						<td>
+							<el-switch style="display: block" v-model="areaDo" active-color="#edad24" inactive-color="#e8e4e3" active-text="上色中"
 								@change="nowColor=areaDo ? '#edad24': nowColor;"></el-switch>
 						</td>
-						<td colspan="2">
-							<el-switch style="display: block" v-model="areaDa" active-color="#e874b4" inactive-color="#e8e4e3" active-text="標識出餐口"
+						<td style="background-color: #e874b4" width="30px">
+						</td>
+						<td>
+							<el-switch style="display: block" v-model="areaDa" active-color="#e874b4" inactive-color="#e8e4e3" active-text="上色中"
 								inactive-text=""
 								@change="nowColor=areaDa ? '#e874b4': nowColor"></el-switch>
 						</td>
-					</tr>
-					<tr>
-						<td colspan="2">
-							<el-switch style="display: block" v-model="areaA" active-color="#8671e3" inactive-color="#e8e4e3" active-text="上色中" inactive-text=""
-								@change="nowColor='#8671e3'"></el-switch>
+						<td style="background-color: #8671e3" width="30px">
 						</td>
-						<td colspan="2">
-							<el-switch style="display: block" v-model="areaB" active-color="#42f5e9" inactive-color="#e8e4e3" active-text="上色中" inactive-text=""
-								@change="nowColor='#42f5e9'"></el-switch>
+						<td>
+							<el-switch style="display: block" v-model="areaA" active-color="#8671e3" inactive-color="#e8e4e3" active-text="上色中"
+								@change="nowColor=areaA ? '#8671e3': nowColor;"></el-switch>
+						</td>
+						<td style="background-color: #42f5e9" width="30px">
+						</td>
+						<td>
+							<el-switch style="display: block" v-model="areaB" active-color="#42f5e9" inactive-color="#e8e4e3" active-text="上色中"
+								inactive-text=""
+								@change="nowColor=areaB ? '#42f5e9': nowColor"></el-switch>
 						</td>
 					</tr>
 					<tr>
-					  <td>
-						<el-button size="mini" type="danger" icon="el-icon-caret-right" circle></el-button>傳送攪拌器
-					  </td>
-					  <td>
-						<el-button size="mini" type="warning" icon="el-icon-caret-right" circle></el-button>組合器
-					  </td>
-					  <td>
-						<el-button size="mini" type="success" icon="el-icon-caret-right" circle></el-button>自動擺盤架
-					  </td>
-					  <td>
-						<el-button size="mini" type="primary" icon="el-icon-caret-right" circle></el-button>冰淇淋挖勺
-					  </td>
+						<td colspan="8">圖示示義(僅為展示)</td>
+					</tr>
+					<tr >
+						<td width="30px">
+							<el-button size="mini" type="danger" icon="el-icon-caret-right" circle></el-button>
+						</td>
+						<td>
+							傳送攪拌器
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="warning" icon="el-icon-caret-right" circle></el-button>
+						</td>
+						<td>
+							組合器
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="success" icon="el-icon-caret-right" circle></el-button>
+						</td>
+						<td>
+							自動擺盤架
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="primary" icon="el-icon-caret-right" circle></el-button>
+						</td>
+						<td>
+							冰淇淋挖勺
+						</td>
+					</tr>
+					<tr >
+						<td width="30px">
+							<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							智慧抓取器
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							抓取器
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							傳送帶
+						</td>
+						<td width="30px">
+							
+						</td>
+						<td>
+							
+						</td>
+					</tr>
+					<tr >
+						<td width="30px">
+							<el-button size="mini" type="primary" icon="el-icon-menu" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							4格冰箱
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="primary" icon="el-icon-full-screen" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							冷凍庫
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="primary" icon="el-icon-receiving" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							流理台
+						</td>
+						<td width="30px">
+							
+						</td>
+						<td>
+							
+						</td>
+					</tr>
+					<tr >
+						<td width="30px">
+							<el-button size="mini" type="success" icon="el-icon-dish" circle></el-button>
+						</td>
+						<td>
+							4/8盤子架
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="danger" icon="el-icon-dish-1" circle></el-button>
+						</td>
+						<td>
+							髒盤架
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="success" icon="el-icon-data-board" circle></el-button>
+						</td>
+						<td>
+							洗碗槽
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="primary" icon="el-icon-takeaway-box" circle></el-button>
+						</td>
+						<td>
+							浸泡槽
+						</td>
+					</tr>
+					<tr >
+						<td width="30px">
+							<el-button size="mini" type="success" icon="el-icon-aim" circle></el-button>
+						</td>
+						<td>
+							安全瓦斯爐
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="danger" icon="el-icon-aim" circle></el-button>
+						</td>
+						<td>
+							高危瓦斯爐
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="warning" icon="el-icon-coordinate" circle></el-button>
+						</td>
+						<td>
+							加熱攪拌器
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="danger" icon="el-icon-coordinate" circle></el-button>
+						</td>
+						<td>
+							疾速攪拌器
+						</td>
 					</tr>
 					<tr>
-					  <td>
-						<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"
-							></el-button>智慧抓取器
-					  </td>
-					  <td>
-						<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"
-							></el-button>抓取器
-					  </td>
-					  <td>
-						<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"
-							></el-button>傳送帶
-					  </td>
+						<td colspan="8">自示義圖示(輸入文字)</td>
 					</tr>
-					<tr>
-					  <td>
-						<el-button size="mini" type="primary" icon="el-icon-menu" style="padding: 7px"
-							></el-button>4格冰箱
-					  </td>
-					  <td>
-						<el-button size="mini" type="primary" icon="el-icon-full-screen" style="padding: 7px"></el-button>冷凍庫
-					  </td>
-					  <td>
-						<el-button size="mini" type="success" icon="el-icon-receiving" style="padding: 7px"></el-button>流理台
-					  </td>
+					<tr >
+						<td width="30px">
+							<el-button size="mini" type="danger" icon="el-icon-star-off" circle></el-button>
+						</td>
+						<td>
+							<el-input size="mini" v-model="input[0]" placeholder="請輸入自定義項目"></el-input>
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="warning" icon="el-icon-star-off" circle></el-button>
+						</td>
+						<td>
+							<el-input size="mini" v-model="input[1]" placeholder="請輸入自定義項目"></el-input>
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="success" icon="el-icon-star-off" circle></el-button>
+						</td>
+						<td>
+							<el-input size="mini" v-model="input[2]" placeholder="請輸入自定義項目"></el-input>
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="primary" icon="el-icon-star-off" circle></el-button>
+						</td>
+						<td>
+							<el-input size="mini" v-model="input[3]" placeholder="請輸入自定義項目"></el-input>
+						</td>
 					</tr>
-					<tr>
-					  <td>
-						<el-button size="mini" type="success" icon="el-icon-dish" circle></el-button>4/8盤子架
-					  </td>
-					  <td>
-						<el-button size="mini" type="danger" icon="el-icon-dish-1" circle></el-button>髒盤架
-					  </td>
-					  <td>
-						<el-button size="mini" type="success" icon="el-icon-data-board" circle></el-button>洗碗槽
-					  </td>
-					  <td>
-						<el-button size="mini" type="primary" icon="el-icon-takeaway-box" circle></el-button>浸泡槽
-					  </td>
-					</tr>
-					<tr>
-					  <td>
-						<el-button size="mini" type="success" icon="el-icon-aim" circle></el-button>安全瓦斯爐
-					  </td>
-					  <td>
-						<el-button size="mini" type="danger" icon="el-icon-aim" circle></el-button>高危瓦斯爐
-					  </td>
-					  <td>
-						<el-button size="mini" type="warning" icon="el-icon-coordinate" circle></el-button>加熱攪拌器
-					  </td>
-					  <td>
-						<el-button size="mini" type="danger" icon="el-icon-coordinate" circle></el-button>疾速攪拌器
-					  </td>
+					<tr >
+						<td width="30px">
+							<el-button size="mini" type="danger" icon="el-icon-star-on" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							<el-input size="mini" v-model="input[4]" placeholder="請輸入自定義項目"></el-input>
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="warning" icon="el-icon-star-on" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							<el-input size="mini" v-model="input[5]" placeholder="請輸入自定義項目"></el-input>
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="success" icon="el-icon-star-on" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							<el-input size="mini" v-model="input[6]" placeholder="請輸入自定義項目"></el-input>
+						</td>
+						<td width="30px">
+							<el-button size="mini" type="primary" icon="el-icon-star-on" style="padding: 7px"></el-button>
+						</td>
+						<td>
+							<el-input size="mini" v-model="input[7]" placeholder="請輸入自定義項目"></el-input>
+						</td>
 					</tr>
 				  </table>
-			</div>
-		</el-col>
-	</el-row>
+    </div>
+  </div>
 
 
   
   
   
-  <el-dialog title="選擇項目" :visible="visible" width="30%" :show-close="!visible">
-  選擇方向()：<el-select size="mini" v-model="direction">
+  <el-dialog title="選擇項目" :visible.sync="visible" width="30%" :show-close="!visible">
+  選擇方向*：<el-select size="mini" v-model="direction">
 			      <el-option label="上" value="top"></el-option>
 				  <el-option label="下" value="bottom"></el-option>
 				  <el-option label="左" value="left"></el-option>
 				  <el-option label="右" value="right"></el-option>
 				</el-select>
   <el-button size="mini" type="info" icon="el-icon-minus" @click="changeIcon('el-icon-minus', 'info', '', x, y, true)">Reset</el-button>
+  <el-button size="mini" type="danger" icon="el-icon-close" @click="visible=false">Close</el-button>
   <table border="1">
 	
 	<tr>
@@ -144,33 +278,33 @@
 	<tr>
 	  <td>
 		<el-button size="mini" type="danger" icon="el-icon-caret-right" 
-			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y)" circle></el-button>傳送攪拌器
+			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y)" circle></el-button>傳送攪拌器*
 	  </td>
 	  <td>
 		<el-button size="mini" type="warning" icon="el-icon-caret-right" circle
-			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y)"></el-button>組合器
+			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y)"></el-button>組合器*
 	  </td>
 	  <td>
 		<el-button size="mini" type="success" icon="el-icon-caret-right" circle
-			@click="changeIcon('el-icon-caret-', 'success', direction, x, y)"></el-button>自動擺盤架
+			@click="changeIcon('el-icon-caret-', 'success', direction, x, y)"></el-button>自動擺盤架*
 	  </td>
 	  <td>
 		<el-button size="mini" type="primary" icon="el-icon-caret-right" circle
-			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y)"></el-button>冰淇淋挖勺
+			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y)"></el-button>冰淇淋挖勺*
 	  </td>
 	</tr>
 	<tr>
 	  <td>
 		<el-button size="mini" type="danger" icon="el-icon-caret-right" style="padding: 7px"
-			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y, false)"></el-button>智慧抓取器
+			@click="changeIcon('el-icon-caret-', 'danger', direction, x, y, false)"></el-button>智慧抓取器*
 	  </td>
 	  <td>
 		<el-button size="mini" type="warning" icon="el-icon-caret-right" style="padding: 7px"
-			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y), false"></el-button>抓取器
+			@click="changeIcon('el-icon-caret-', 'warning', direction, x, y), false"></el-button>抓取器*
 	  </td>
 	  <td>
 		<el-button size="mini" type="primary" icon="el-icon-caret-right" style="padding: 7px"
-			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y, false)"></el-button>傳送帶
+			@click="changeIcon('el-icon-caret-', 'primary', direction, x, y, false)"></el-button>傳送帶*
 	  </td>
 	</tr>
 	<tr>
@@ -223,6 +357,45 @@
 			@click="changeIcon('el-icon-coordinate', 'danger', '', x, y)"></el-button>疾速攪拌器
 	  </td>
 	</tr>
+	<tr>
+		<td colspan="8">自示義圖示</td>
+	</tr>
+	<tr>
+		<td >
+			<el-button size="mini" type="danger" icon="el-icon-star-off" circle
+				@click="changeIcon('el-icon-star-off', 'danger', '', x, y)"></el-button>{{input[0]}}
+		</td>
+		<td>
+			<el-button size="mini" type="warning" icon="el-icon-star-off" circle
+				@click="changeIcon('el-icon-star-off', 'warning', '', x, y)"></el-button>{{input[1]}}
+		</td>
+		<td>
+			<el-button size="mini" type="success" icon="el-icon-star-off" circle
+				@click="changeIcon('el-icon-star-off', 'success', '', x, y)"></el-button>{{input[2]}}
+		</td>
+		<td>
+			<el-button size="mini" type="primary" icon="el-icon-star-off" circle
+				@click="changeIcon('el-icon-star-off', 'primary', '', x, y)"></el-button>{{input[3]}}
+		</td>
+	</tr>
+	<tr>
+		<td >
+			<el-button size="mini" type="danger" icon="el-icon-star-on"  style="padding: 7px"
+				@click="changeIcon('el-icon-star-on', 'danger', '', x, y, false)"></el-button>{{input[4]}}
+		</td>
+		<td>
+			<el-button size="mini" type="warning" icon="el-icon-star-on"  style="padding: 7px"
+				@click="changeIcon('el-icon-star-on', 'warning', '', x, y, false)"></el-button>{{input[5]}}
+		</td>
+		<td>
+			<el-button size="mini" type="success" icon="el-icon-star-on"  style="padding: 7px"
+				@click="changeIcon('el-icon-star-on', 'success', '', x, y, false)"></el-button>{{input[6]}}
+		</td>
+		<td>
+			<el-button size="mini" type="primary" icon="el-icon-star-on" style="padding: 7px"
+				@click="changeIcon('el-icon-star-on', 'primary', '', x, y, false)"></el-button>{{input[7]}}
+		</td>
+	</tr>
   </table>
   </el-dialog>
 </div>
@@ -242,6 +415,8 @@ var vue = new Vue({
 		areaB: false,
 		areaDo: false,
 		areaDa: false,
+		canSetColor: false,
+		input: ['','','','','','','','','','','','','','','','','',]
 	},
 	methods: {
 		getVal: function(x, y, field){
@@ -281,7 +456,9 @@ var vue = new Vue({
 		},
 		setColor: function(x, y) {
 			var vm = this;
-			vm.list[y - 1][x - 1].bgcolor = vm.nowColor;
+			if(!vm.canSetColor) return;
+			if(vm.areaA || vm.areaB || vm.areaDo || vm.areaDa)
+				vm.list[y - 1][x - 1].bgcolor = vm.nowColor;
 		}
 		
 	},
