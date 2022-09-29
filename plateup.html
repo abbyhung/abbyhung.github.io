@@ -20,7 +20,7 @@
 					
 					<tr v-for="y1 in row">
 						<td v-for="x1 in col"
-							:style="'background-color: ' + list[y1-1][x1-1].bgcolor"
+							:style="'text-align: center;background-color: ' + list[y1-1][x1-1].bgcolor"
 							@mousedown.prevent="canSetColor = true;setColor(x1, y1)"
 							@mouseover.prevent="setColor(x1, y1)"
 							@mouseup.prevent="canSetColor = false"
@@ -28,6 +28,7 @@
 							<el-button v-if="!areaA && !areaB && !areaDo && !areaDa" size="mini" @click="x=x1; y=y1; visible=true" :type="getVal(x1, y1, 'type1')" 
 								:circle="list[y1-1][x1-1].circle"
 							:icon="list[y1-1][x1-1].icon1" style="padding: 7px"></el-button>
+							<div v-else style="width:30px;height:30px"></div>
 						</td>
 					</tr>
 				</table>
