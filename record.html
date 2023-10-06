@@ -1,0 +1,192 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="https://unpkg.com/vue@2.7.14/dist/vue.js"></script>
+<script src="https://unpkg.com/frappe-charts@1.2.4/dist/frappe-charts.min.iife.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+<link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+
+<div id="app">    
+	<div style="margin: 20px;"></div>
+	<el-form label-position="right" label-width="80px" :model="record">
+		<el-form-item label="時間">
+			<el-date-picker v-model="record.date" type="date" value-format="yyyyMMdd"></el-date-picker>
+		</el-form-item>
+		<el-form-item label="時間">
+			<el-radio-group v-model="record.type">
+				<el-radio-button label="日"></el-radio-button>
+				<el-radio-button label="夜"></el-radio-button>
+			</el-radio-group>
+		</el-form-item>
+		<el-form-item label="體重">
+			<el-input v-model="record.weight" clearable type="number">
+			</el-input>
+		</el-form-item>
+		<el-form-item label="">
+			<el-button type="primary" @click="send">儲存</el-button>
+			<a href="../view.html">
+				<el-button>查看圖表</el-button>
+			</a>
+		</el-form-item>
+	</el-form>
+</div>
+<script>
+var app = new Vue({
+	el: '#app',
+	data: {
+	    view: {
+	        alerts: [],
+	        loading: false,
+	        confirm: {
+	            show: false,
+	            message: '',
+	            action: ''
+	        },
+	    },
+		emptyRecord: {date: new Date().toLocaleDateString('zh-TW', 
+			{ year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, ''),
+			type: '日', weight: null},
+		record: {date: new Date().toLocaleDateString('zh-TW', 
+			{ year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, ''),
+			type: '日', weight: null},
+		range: '近一週',
+		rangeItems: ['近一週', '近一個月', '近三個月'],
+	    list: [],
+		dateArray: [],
+		dayWeights: [],
+		nightWeights: [],
+		processData: {},
+		chart: null,
+	},
+	computed: {
+	    
+	},
+	methods: {
+	    cloneObj: function(obj) {
+	    	return JSON.parse(JSON.stringify(obj));
+	    },
+	    send: function() {
+            send(this.record);
+		},
+		query: function() {
+		    query();
+		},
+	},
+	mounted: function() {
+		//query(this);
+	}
+});
+
+var url = "https://script.google.com/macros/s/AKfycbxwJSedgRpto9J97G0WDuezvBi567yQ-jq3jyts3S4kdktnE1R3Zql3Q3EEpqvHlSZr/exec";
+
+// 查詢
+function query(app) {
+    app.view.loading = true;
+	$.ajax({
+	  // 這邊用get type
+	  type: "get",
+	  // api url - google appscript 產出的 url
+	  url: url,
+	  // 剛剛整理好的資料帶入
+	  data: {},
+	  // 資料格式是JSON 
+	  dataType: "JSON",
+	  // 成功送出 會回頭觸發下面這塊感謝
+	  success: function (response) {
+		app.view.loading = false;
+		app.list = response;
+		var allDates = response.map(item => item.date);
+		// 去重并排序日期
+		app.processData["labels"] = [...new Set(allDates)].sort();
+		
+		// 对数据按日期进行分组
+		var groupedData = {};
+		response.forEach(item => {
+			var date = item.date;
+			if (!groupedData[date]) {
+				groupedData[date] = [];
+			}
+			groupedData[date].push(item);
+		});
+
+		// 筛选出type为"日"的weight，并代入前一天的weight
+		var dayResult = [];
+		var nightResult = [];
+		var previousWeight1 = null; // 存储前一天的weight
+		var previousWeight2 = null; // 存储前一天的weight
+		for (var i = 0; i < app.processData["labels"].length; i++) {
+			var currentDate = app.processData["labels"][i];
+			var currentData = groupedData[currentDate];
+			var currentWeight = currentData.find(item => item.type === '日')?.weight;
+			if ((currentWeight === undefined  || currentWeight === '') && previousWeight1 !== null) {
+				// 如果当前日期没有"日"类型的weight且前一天有值，则使用前一天的weight
+				currentWeight = previousWeight1;
+			}
+			if (currentWeight !== undefined) {
+				// 只添加有值的weight
+				dayResult.push(currentWeight);
+			}
+			previousWeight1 = currentWeight; // 更新前一天的weight
+			currentWeight = currentData.find(item => item.type === '夜')?.weight;
+			if ((currentWeight === undefined  || currentWeight === '') && previousWeight2 !== null) {
+				// 如果当前日期没有"日"类型的weight且前一天有值，则使用前一天的weight
+				currentWeight = previousWeight2;
+			}
+			if (currentWeight !== undefined) {
+				// 只添加有值的weight
+				nightResult.push(currentWeight);
+			}
+			previousWeight2 = currentWeight; // 更新前一天的weight
+		}
+		app.processData["datasets"] = [];
+		app.processData["datasets"].push({name: '日', type: 'line', values: dayResult});
+		app.processData["datasets"].push({name: '夜', type: 'line', values: nightResult});
+		var maxWeight = Math.max(...dayResult);
+
+		// 找到最接近5的倍数的值，大于最大值
+		var closestMultipleOf5 = Math.ceil(maxWeight / 5) * 5;
+		
+		// 找到weight的最小值
+		var minWeight = Math.min(...nightResult);
+
+		// 找到最接近5的倍数的值，小于最小值
+		var closestMinOf5 = Math.floor(minWeight / 5) * 5;
+		app.chart = new frappe.Chart("#chart", {  // or a DOM element,
+                                            // new Chart() in case of ES6 module with above usage
+			title: "近期體重變化",
+			data: app.processData,
+			type: 'line', // or 'bar', 'line', 'scatter', 'pie', 'percentage'
+			height: window.innerHeight - 100,
+			colors: ['#7cd6fd', '#743ee2'],
+			axisOptions: {
+				y: {
+					min: closestMultipleOf5, // 设置刻度最小值
+					max: closestMinOf5 // 设置刻度最大值
+				}
+			}
+		})
+	  }
+	});
+}
+
+// 傳送訂購資料
+function send(data){
+	app.view.loading = true;
+    app.view.alerts = [];
+	$.ajax({
+    type: "post",
+    url: url,
+    data: data,
+    dataType: "JSON",
+    success: function () {
+        app.view.loading = false;
+        query();
+		app.record = app.cloneObj(app.emptyRecord);
+    }
+  });
+}
+
+$(function(){
+});
+</script>
