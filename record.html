@@ -7,15 +7,21 @@
 <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
 <script src="https://unpkg.com/element-ui/lib/index.js"></script>
 
-<div id="app">    
-	<el-calendar v-model="test" >
+<div id="app">
+	<el-row :gutter="20">
+		<el-col :span="4"><el-button @click="directDate.setDate(directDate.getDate() - 28); dateRange(directDate)"><i class="fa fa-chevron-left" aria-hidden="true"></i></el-button></el-col>
+		
+		<el-col :span="4" :offset="16"><el-button @click="directDate.setDate(directDate.getDate() + 28); dateRange(directDate)"><i class="fa fa-chevron-right" aria-hidden="true"></i></el-button></el-col>
+	</el-row>
+
+	<el-calendar :range="range" v-model="test" :first-day-of-week="7">
 		<template
 			slot="dateCell"
 			slot-scope="{date, data}">
-			<span>
-			{{ data.day.split('-')[2] }} 
-			</span>
-			<span style="color: orange;">{{getWeight(data.day, '日')}}</span>
+			<span v-if="isCurrentMonth(data, date)" style="color: lightgray;">{{data.day.split('-')[2]}}</span>
+			<span v-else>{{data.day.split('-')[2]}}</span>
+			<br>
+			<span style="color: orange;">{{getWeight(data.day, '日')}}</span><br>
 			<span style="color: blue;">{{getWeight(data.day, '夜')}}</span>
 		</template>
 	</el-calendar>
@@ -57,8 +63,8 @@ var app = new Vue({
 		record: {date: new Date().toLocaleDateString('zh-TW', 
 			{ year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, ''),
 			type: '日', weight: null},
-		range: '近一週',
-		rangeItems: ['近一週', '近一個月', '近三個月'],
+		range: [
+			new Date(), new Date()],
 	    list: [],
 		dateArray: [],
 		dayWeights: [],
@@ -66,11 +72,37 @@ var app = new Vue({
 		processData: {},
 		chart: null,
 		test: new Date(),
+		directDate: new Date(),
 	},
 	computed: {
-	    
 	},
 	methods: {
+	    dateRange(currentDate){
+			// 獲取當前日期是本週的第幾天（0表示週日，1表示週一，以此類推）
+			var currentDayOfWeek = currentDate.getDay();
+
+			// 計算本週的週日和週六的日期
+			var thisSunday = new Date(currentDate);
+			thisSunday.setDate(currentDate.getDate() - currentDayOfWeek);
+			var thisSaturday = new Date(currentDate);
+			thisSaturday.setDate(currentDate.getDate() - currentDayOfWeek + 6);
+
+			// 計算前兩週週日的日期
+			var twoWeeksAgoSunday = new Date(thisSunday);
+			twoWeeksAgoSunday.setDate(thisSunday.getDate() - 14);
+
+			// 計算後一週週六的日期
+			var twoWeeksLaterSaturday = new Date(thisSaturday);
+			twoWeeksLaterSaturday.setDate(thisSaturday.getDate() + 7);
+			
+			this.range = [twoWeeksAgoSunday, twoWeeksLaterSaturday];
+		},
+		formatDate(date) {
+			var year = date.getFullYear();
+			var month = String(date.getMonth() + 1).padStart(2, '0');
+			var day = String(date.getDate()).padStart(2, '0');
+			return year + '-' + month + day;
+		},
 	    cloneObj: function(obj) {
 	    	return JSON.parse(JSON.stringify(obj));
 	    },
@@ -95,11 +127,16 @@ var app = new Vue({
 			}
 			return ''
 		},
+		isCurrentMonth(data, date) {
+			return date.getMonth() !== this.directDate.getMonth();
+		},
 	},
 	mounted: function() {
+		this.dateRange(this.directDate);
 		$($('.el-button--plain').find('span')[0]).html('<');
 		$($('.el-button--plain').find('span')[2]).html('>');
 		query(this);
+		$('.el-calendar__header').hide();
 	}
 });
 
