@@ -7,14 +7,14 @@
 <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
 <script src="https://unpkg.com/element-ui/lib/index.js"></script>
 
-<div id="app">
+<div id="app" v-loading="view.loading">
 	<el-row :gutter="20">
 		<el-col :span="4"><el-button @click="directDate.setDate(directDate.getDate() - 28); dateRange(directDate)"><i class="fa fa-chevron-left" aria-hidden="true"></i></el-button></el-col>
 		
 		<el-col :span="4" :offset="16"><el-button @click="directDate.setDate(directDate.getDate() + 28); dateRange(directDate)"><i class="fa fa-chevron-right" aria-hidden="true"></i></el-button></el-col>
 	</el-row>
 
-	<el-calendar :range="range" v-model="test" :first-day-of-week="7">
+	<el-calendar :range="range" v-model="selectDate" :first-day-of-week="7">
 		<template
 			slot="dateCell"
 			slot-scope="{date, data}">
@@ -42,7 +42,6 @@
 				<el-button>查看圖表</el-button>
 			</a>
 		</el-form-item>
-	</el-form>
 </div>
 <script>
 var app = new Vue({
@@ -71,7 +70,7 @@ var app = new Vue({
 		nightWeights: [],
 		processData: {},
 		chart: null,
-		test: new Date(),
+		selectDate: new Date(),
 		directDate: new Date(),
 	},
 	computed: {
@@ -101,15 +100,15 @@ var app = new Vue({
 			var year = date.getFullYear();
 			var month = String(date.getMonth() + 1).padStart(2, '0');
 			var day = String(date.getDate()).padStart(2, '0');
-			return year + '-' + month + day;
+			return year + month + day;
 		},
 	    cloneObj: function(obj) {
 	    	return JSON.parse(JSON.stringify(obj));
 	    },
 	    send: function() {
-			var year = this.test.getFullYear();
-		    var month = String(this.test.getMonth() + 1).padStart(2, '0');
-		    var day = String(this.test.getDate()).padStart(2, '0');
+			var year = this.selectDate.getFullYear();
+		    var month = String(this.selectDate.getMonth() + 1).padStart(2, '0');
+		    var day = String(this.selectDate.getDate()).padStart(2, '0');
 			this.record.date = year + month + day;
             send(this.record);
 		},
@@ -140,8 +139,6 @@ var app = new Vue({
 	}
 });
 
-var url = "https://script.google.com/macros/s/AKfycbxwJSedgRpto9J97G0WDuezvBi567yQ-jq3jyts3S4kdktnE1R3Zql3Q3EEpqvHlSZr/exec";
-
 // 查詢
 function query(app) {
     app.view.loading = true;
@@ -168,15 +165,19 @@ function send(data){
     app.view.alerts = [];
 	$.ajax({
     type: "post",
-    url: url,
+    url: "https://script.google.com/macros/s/AKfycbxwJSedgRpto9J97G0WDuezvBi567yQ-jq3jyts3S4kdktnE1R3Zql3Q3EEpqvHlSZr/exec",
     data: data,
     dataType: "JSON",
-    success: function () {
-        app.view.loading = false;
-        query();
+    success: function (response) {
+		
+    }});
+	
+	// 延迟一秒后执行 query() 函数
+	setTimeout(function() {
+		query(app); // 在这里调用您的 query() 函数
 		app.record = app.cloneObj(app.emptyRecord);
-    }
-  });
+	}, 1000); // 1000毫秒（1秒）的延迟
+
 }
 
 $(function(){
