@@ -3,17 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨 - 產業鏈平衡版</title>
+    <title>伐木大亨 - 經濟平衡版</title>
     <style>
         body { 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; 
-            background-color: #C7EDCC; 
-            touch-action: none; 
-            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; 
-            user-select: none; 
-            -webkit-user-select: none; 
+            margin: 0; padding: 0; overflow: hidden; background-color: #C7EDCC; 
+            touch-action: none; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; 
+            user-select: none; -webkit-user-select: none; 
         }
         canvas { display: block; }
     </style>
@@ -29,20 +24,14 @@
         const joystick = { x: 0, y: 0, radius: 60, knobX: 0, knobY: 0, active: false, angle: 0, pull: 0, touchId: null };
         const uiOkBtn = { x: 0, y: 0, w: 200, h: 60, active: false, target: null };
         const clearSaveBtn = { x: 0, y: 20, w: 100, h: 40 }; 
-        
         const keys = { up: false, down: false, left: false, right: false };
 
-        let firstInteractionTime = null;
-        let lastInteractionTime = null;
-        let saveTimer = 3.0; 
+        let firstInteractionTime = null; let lastInteractionTime = null; let saveTimer = 3.0; 
 
         function resize() { 
-            canvas.width = window.innerWidth; 
-            canvas.height = window.innerHeight; 
-            joystick.x = canvas.width - 100; 
-            joystick.y = canvas.height - 100; 
-            uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; 
-            uiOkBtn.y = canvas.height - 120; 
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight; 
+            joystick.x = canvas.width - 100; joystick.y = canvas.height - 100; 
+            uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; uiOkBtn.y = canvas.height - 120; 
             clearSaveBtn.x = canvas.width - 120; 
         }
         window.addEventListener('resize', resize); resize();
@@ -50,11 +39,8 @@
         let money = 0; let lastTime = performance.now();
         const counterLog = { x: 200, y: 1100, width: 240, height: 80, wood: 0, money: 0 };
         const counterLumber = { x: 200, y: 500, width: 240, height: 80, lumber: 0, money: 0 };
-        
         const forestStartX = 1800; const startY = 200; const spacing = 60;
         let forestCols = 5; let forestRows = 5;
-        
-        // 【平衡調整】：將集中區移至森林旁邊，大幅縮短砍樹幫手的折返時間
         const autoWoodZone = { x: 1600, y: 200, w: 120, h: 80, wood: 0 };
         const machines = [];
         const player = { x: counterLog.x + 120, y: counterLog.y - 100, radius: 15, speed: 300, wood: 0, lumber: 0, chopTimer: 0, maxChopTime: 6.0, vx: 0, vy: 0 };
@@ -91,21 +77,20 @@
             upgrades.expand.box.y = bottomY + 90;
         }
 
+        // ================= 經濟數值平衡區 =================
         const upgrades = {
             speed: { box: {x: forestStartX, y: 0, w: 140, h: 50}, title: '砍樹效率 (-1s)', costVal: 50, level: 1, cd: 0, req: function() { return player.maxChopTime > 1; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '已滿等'; }, action: function() { player.maxChopTime -= 1; this.level++; this.costVal = Math.floor(this.costVal * 1.5); } },
-            // 【平衡調整】：提升幫手跑速至 250，讓砍樹更有效率
-            auto: { box: {x: forestStartX + 150, y: 0, w: 140, h: 50}, title: '砍樹幫手', costVal: 100, count: 0, max: 5, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; this.costVal = Math.floor(this.costVal * 1.5); autoChoppers.push({x: this.box.x + 70, y: this.box.y - 20, speed: 250, wood: 0, state: 'idle'}); } },
-            expand: { box: {x: forestStartX, y: 0, w: 290, h: 50}, title: '擴建森林', costVal: 500, level: 0, max: 5, cd: 0, req: function() { return this.level < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${forestCols}x${forestRows})` : '已達極限'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 2.5); let oc = forestCols, or = forestRows; forestCols++; forestRows++; buildForest(forestCols, forestRows, oc, or); updateUIPositions(); } },
-            // 【UI調整】：將物流升級按鈕移至新的集中區下方
-            transA: { box: {x: 1600, y: 320, w: 140, h: 50}, title: '運送員A (赴原木站)', costs: [50, 150, 750], count: 0, max: 3, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transA.push({x: autoWoodZone.x + 60, y: autoWoodZone.y + 40, speed: 250, wood: 0, state: 'idle'}); } },
-            transB: { box: {x: 1600, y: 380, w: 140, h: 50}, title: '運送員B (赴加工廠)', costs: [50, 150, 750], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transB.push({x: autoWoodZone.x + 60, y: autoWoodZone.y + 40, speed: 250, wood: 0, state: 'idle'}); } },
-            
+            auto: { box: {x: forestStartX + 150, y: 0, w: 140, h: 50}, title: '砍樹幫手', costVal: 150, count: 0, max: 5, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; this.costVal = Math.floor(this.costVal * 1.5); autoChoppers.push({x: this.box.x + 70, y: this.box.y - 20, speed: 250, wood: 0, state: 'idle'}); } },
+            expand: { box: {x: forestStartX, y: 0, w: 290, h: 50}, title: '擴建森林', costVal: 300, level: 0, max: 5, cd: 0, req: function() { return this.level < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${forestCols}x${forestRows})` : '已達極限'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); let oc = forestCols, or = forestRows; forestCols++; forestRows++; buildForest(forestCols, forestRows, oc, or); updateUIPositions(); } },
+            transA: { box: {x: 1600, y: 320, w: 140, h: 50}, title: '運送員A (赴原木站)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transA.push({x: autoWoodZone.x + 60, y: autoWoodZone.y + 40, speed: 250, wood: 0, state: 'idle'}); } },
+            transB: { box: {x: 1600, y: 380, w: 140, h: 50}, title: '運送員B (赴加工廠)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transB.push({x: autoWoodZone.x + 60, y: autoWoodZone.y + 40, speed: 250, wood: 0, state: 'idle'}); } },
             cashierLog: { box: {x: counterLog.x + 300, y: counterLog.y + 15, w: 140, h: 50}, title: '自動收銀 (原木)', costVal: 200, bought: false, cd: 0, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } },
-            machineBuy: { box: {x: 800, y: 350, w: 160, h: 50}, title: '購買加工廠', costs: [300, 600, 1200], count: 0, max: 3, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { machines.push({x: 800, y: 450 + this.count * 150, w: 100, h: 60, inputWood: 0, outputLumber: 0, timer: 0}); this.count++; } },
-            machineSpeed: { box: {x: 1000, y: 350, w: 160, h: 50}, title: '加工效率 (-1s)', costVal: 200, level: 1, maxTime: 6.0, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return this.level < 5; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.maxTime -= 1.0; this.costVal *= 2; } },
-            transC: { box: {x: 600, y: 450, w: 140, h: 50}, title: '運送員C (赴木材區)', costs: [50, 150, 750], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transC.push({x: counterLumber.x + 100, y: counterLumber.y + 40, speed: 250, lumber: 0, state: 'idle'}); } },
+            machineBuy: { box: {x: 800, y: 350, w: 160, h: 50}, title: '購買加工廠', costs: [300, 700, 1500], count: 0, max: 3, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { machines.push({x: 800, y: 450 + this.count * 150, w: 100, h: 60, inputWood: 0, outputLumber: 0, timer: 0}); this.count++; } },
+            machineSpeed: { box: {x: 1000, y: 350, w: 160, h: 50}, title: '加工效率 (-1s)', costVal: 300, level: 1, maxTime: 6.0, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return this.level < 5; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.maxTime -= 1.0; this.costVal = Math.floor(this.costVal * 1.8); } },
+            transC: { box: {x: 600, y: 450, w: 140, h: 50}, title: '運送員C (赴木材區)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transC.push({x: counterLumber.x + 100, y: counterLumber.y + 40, speed: 250, lumber: 0, state: 'idle'}); } },
             cashierLumber: { box: {x: counterLumber.x + 300, y: counterLumber.y + 15, w: 140, h: 50}, title: '自動收銀 (木材)', costVal: 200, bought: false, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } }
         };
+        // ==================================================
 
         function saveGame() {
             const data = {
@@ -151,12 +136,12 @@
                 let upg = data.upgrades;
                 if (upg) {
                     upgrades.speed.level = upg.speed.level || 1; upgrades.speed.costVal = upg.speed.costVal || 50;
-                    upgrades.auto.count = upg.auto.count || 0; upgrades.auto.costVal = upg.auto.costVal || 100;
-                    upgrades.expand.level = upg.expand.level || 0; upgrades.expand.costVal = upg.expand.costVal || 500;
+                    upgrades.auto.count = upg.auto.count || 0; upgrades.auto.costVal = upg.auto.costVal || 150;
+                    upgrades.expand.level = upg.expand.level || 0; upgrades.expand.costVal = upg.expand.costVal || 300;
                     upgrades.transA.count = upg.transA.count || 0; upgrades.transB.count = upg.transB.count || 0; upgrades.transC.count = upg.transC.count || 0;
                     upgrades.cashierLog.bought = upg.cashierLog.bought || false;
                     upgrades.machineBuy.count = upg.machineBuy.count || 0;
-                    upgrades.machineSpeed.level = upg.machineSpeed.level || 1; upgrades.machineSpeed.maxTime = upg.machineSpeed.maxTime || 6.0; upgrades.machineSpeed.costVal = upg.machineSpeed.costVal || 200;
+                    upgrades.machineSpeed.level = upg.machineSpeed.level || 1; upgrades.machineSpeed.maxTime = upg.machineSpeed.maxTime || 6.0; upgrades.machineSpeed.costVal = upg.machineSpeed.costVal || 300;
                     upgrades.cashierLumber.bought = upg.cashierLumber.bought || false;
                 }
                 return { savedTreeData };
@@ -169,7 +154,6 @@
         if (!loadResult) { forestCols = 5; forestRows = 5; }
         
         buildForest(forestCols, forestRows);
-        
         if (loadResult && loadResult.savedTreeData) {
             let savedTreeData = loadResult.savedTreeData;
             let limit = Math.min(trees.length, savedTreeData.length);
@@ -191,11 +175,7 @@
         function isInsideUI(x, y, ui) { return x >= ui.x && x <= ui.x + ui.w && y >= ui.y && y <= ui.y + ui.h; }
         function handlePurchaseClick() { if (uiOkBtn.active && uiOkBtn.target && money >= uiOkBtn.target.cost()) { money -= uiOkBtn.target.cost(); uiOkBtn.target.action(); uiOkBtn.target.cd = 1.0; uiOkBtn.active = false; uiOkBtn.target = null; saveGame(); return true; } return false; }
         
-        function recordInteraction() {
-            let now = Date.now();
-            if (!firstInteractionTime) firstInteractionTime = now;
-            lastInteractionTime = now;
-        }
+        function recordInteraction() { let now = Date.now(); if (!firstInteractionTime) firstInteractionTime = now; lastInteractionTime = now; }
 
         window.addEventListener('keydown', (e) => {
             recordInteraction();
@@ -214,17 +194,11 @@
 
         function handleInputStart(e, clientX, clientY, id) { 
             recordInteraction();
-            
             if (isInsideUI(clientX, clientY, clearSaveBtn)) {
-                if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) {
-                    localStorage.removeItem('lumberjack_save');
-                    location.reload();
-                }
+                if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) { localStorage.removeItem('lumberjack_save'); location.reload(); }
                 return;
             }
-
             if (uiOkBtn.active && isInsideUI(clientX, clientY, uiOkBtn)) { if(handlePurchaseClick()) return; } 
-            
             let dx = clientX - joystick.x, dy = clientY - joystick.y; 
             if (Math.hypot(dx, dy) < joystick.radius + 40) { joystick.active = true; joystick.touchId = id; updateJoystick(clientX, clientY); } 
         }
@@ -237,9 +211,7 @@
             joystick.knobX = Math.cos(joystick.angle) * joystick.pull * joystick.radius; joystick.knobY = Math.sin(joystick.angle) * joystick.pull * joystick.radius; 
         }
 
-        function handleInputEnd(id) { 
-            if (joystick.touchId === id || id === 'mouse') { joystick.active = false; joystick.touchId = null; joystick.knobX = 0; joystick.knobY = 0; } 
-        }
+        function handleInputEnd(id) { if (joystick.touchId === id || id === 'mouse') { joystick.active = false; joystick.touchId = null; joystick.knobX = 0; joystick.knobY = 0; } }
 
         window.addEventListener('touchstart', (e) => { e.preventDefault(); for(let t of e.changedTouches) handleInputStart(e, t.clientX, t.clientY, t.identifier); }, {passive: false});
         window.addEventListener('touchmove', (e) => { e.preventDefault(); for(let t of e.changedTouches) if(t.identifier === joystick.touchId) updateJoystick(t.clientX, t.clientY); }, {passive: false});
@@ -249,7 +221,18 @@
         window.addEventListener('mousemove', (e) => { if(e.buttons === 1) updateJoystick(e.clientX, e.clientY); });
         window.addEventListener('mouseup', () => handleInputEnd('mouse'));
         
-        function processTransaction(counter, customersArr, isLumber) { if(customersArr.length === 0) return; let current = customersArr[0], stock = isLumber ? counter.lumber : counter.wood; let sellAmount = Math.min(stock, current.need); if (isLumber) counter.lumber -= sellAmount; else counter.wood -= sellAmount; current.need -= sellAmount; counter.money += sellAmount * (isLumber ? 4 : 2); if (current.need <= 0) customersArr.shift(); }
+        function processTransaction(counter, customersArr, isLumber) { 
+            if(customersArr.length === 0) return; 
+            let current = customersArr[0], stock = isLumber ? counter.lumber : counter.wood; 
+            let sellAmount = Math.min(stock, current.need); 
+            if (isLumber) counter.lumber -= sellAmount; else counter.wood -= sellAmount; 
+            current.need -= sellAmount; 
+            
+            // 【物價調整】：原木每根 5 塊，木材每塊 15 塊
+            counter.money += sellAmount * (isLumber ? 15 : 5); 
+            
+            if (current.need <= 0) customersArr.shift(); 
+        }
 
         function update(dt) {
             if (joystick.active) {
@@ -257,19 +240,9 @@
                 player.vy = Math.sin(joystick.angle) * player.speed * joystick.pull; 
             } else {
                 let kx = 0, ky = 0;
-                if (keys.left) kx -= 1;
-                if (keys.right) kx += 1;
-                if (keys.up) ky -= 1;
-                if (keys.down) ky += 1;
-                
-                if (kx !== 0 || ky !== 0) {
-                    let kDist = Math.hypot(kx, ky);
-                    player.vx = (kx / kDist) * player.speed;
-                    player.vy = (ky / kDist) * player.speed;
-                } else {
-                    player.vx = 0;
-                    player.vy = 0;
-                }
+                if (keys.left) kx -= 1; if (keys.right) kx += 1; if (keys.up) ky -= 1; if (keys.down) ky += 1;
+                if (kx !== 0 || ky !== 0) { let kDist = Math.hypot(kx, ky); player.vx = (kx / kDist) * player.speed; player.vy = (ky / kDist) * player.speed; } 
+                else { player.vx = 0; player.vy = 0; }
             }
 
             player.x += player.vx * dt; player.y += player.vy * dt;
@@ -285,13 +258,9 @@
             trees.forEach(tree => {
                 if (!tree.isCut && (tree.currentStage === 6 || tree === choppingTree)) { 
                     let dist = Math.hypot(player.x - (tree.x + treeSize/2), player.y - (tree.y + treeSize/2));
-                    if (dist < player.radius + treeSize/2 + 10 && dist < minDistance) { 
-                        minDistance = dist; 
-                        closestTree = tree; 
-                    }
+                    if (dist < player.radius + treeSize/2 + 10 && dist < minDistance) { minDistance = dist; closestTree = tree; }
                 } else if (tree.isCut) {
                     tree.respawnTimer -= dt;
-                    // 【平衡調整】：樹木生長時間延長至 60 秒 (每階段 10 秒)
                     let elapsed = 60.0 - tree.respawnTimer;
                     tree.currentStage = Math.max(0, Math.min(6, Math.floor(elapsed / 10.0))); 
                     if (tree.respawnTimer <= 0) { tree.isCut = false; tree.isTargeted = false; tree.currentStage = 6; }
@@ -299,21 +268,12 @@
             });
 
             if (closestTree) {
-                if (choppingTree !== closestTree) { 
-                    if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6;
-                    choppingTree = closestTree; 
-                    player.chopTimer = player.maxChopTime; 
-                }
+                if (choppingTree !== closestTree) { if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6; choppingTree = closestTree; player.chopTimer = player.maxChopTime; }
                 player.chopTimer -= dt;
                 let progressRatio = player.chopTimer / player.maxChopTime; 
                 let animStage = Math.max(1, Math.min(6, Math.ceil(progressRatio * 6)));
                 choppingTree.currentStage = animStage;
-
-                if (player.chopTimer <= 0) {
-                    choppingTree.isCut = true; choppingTree.currentStage = 0; 
-                    choppingTree.respawnTimer = 60.0; // 【平衡調整】：重置為 60 秒
-                    player.wood += 3; choppingTree = null;
-                }
+                if (player.chopTimer <= 0) { choppingTree.isCut = true; choppingTree.currentStage = 0; choppingTree.respawnTimer = 60.0; player.wood += 3; choppingTree = null; }
             } else { 
                 if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6;
                 choppingTree = null; 
@@ -369,10 +329,7 @@
             if (upgrades.machineBuy.count > 0) { spawnTimerLumber -= dt; if (spawnTimerLumber <= 0) { if (customersLumber.length < 10) customersLumber.push({ need: Math.floor(Math.random() * 5) + 2 }); spawnTimerLumber = 3.0; } }
 
             saveTimer -= dt;
-            if (saveTimer <= 0) {
-                saveGame();
-                saveTimer = 3.0; 
-            }
+            if (saveTimer <= 0) { saveGame(); saveTimer = 3.0; }
         }
 
         function formatTime(ts) {
@@ -404,7 +361,6 @@
                 let safeStage = Math.max(0, Math.min(6, tree.currentStage || 0));
                 let stageData = TREE_STAGES[safeStage];
                 if (!stageData) return; 
-
                 let cx = tree.x + treeSize / 2; let cy = tree.y + treeSize / 2;
                 if (safeStage === 0) {
                     ctx.fillStyle = stageData.color; ctx.fillRect(tree.x + 5, tree.y + treeSize - stageData.trunkH, treeSize - 10, stageData.trunkH);
@@ -430,22 +386,11 @@
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; ctx.beginPath(); ctx.arc(joystick.x, joystick.y, joystick.radius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.beginPath(); ctx.arc(joystick.x + joystick.knobX, joystick.y + joystick.knobY, 25, 0, Math.PI * 2); ctx.fill();
             if (uiOkBtn.active && uiOkBtn.target) { ctx.fillStyle = '#32CD32'; ctx.fillRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); ctx.strokeStyle = '#006400'; ctx.lineWidth = 4; ctx.strokeRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); ctx.fillStyle = '#FFF'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(`確認購買 ($${uiOkBtn.target.cost()})`, uiOkBtn.x + uiOkBtn.w / 2, uiOkBtn.y + 35); ctx.textAlign = 'left'; }
             
-            ctx.fillStyle = '#CD5C5C'; ctx.fillRect(clearSaveBtn.x, clearSaveBtn.y, clearSaveBtn.w, clearSaveBtn.h);
-            ctx.fillStyle = '#FFF'; ctx.font = '16px Arial'; ctx.textAlign = 'center'; ctx.fillText('清除存檔', clearSaveBtn.x + clearSaveBtn.w / 2, clearSaveBtn.y + 25); ctx.textAlign = 'left';
-
-            ctx.fillStyle = '#333'; ctx.font = '16px Arial';
-            ctx.fillText(`首次互動: ${formatTime(firstInteractionTime)}`, 10, canvas.height - 35);
-            ctx.fillText(`最後互動: ${formatTime(lastInteractionTime)}`, 10, canvas.height - 10);
+            ctx.fillStyle = '#CD5C5C'; ctx.fillRect(clearSaveBtn.x, clearSaveBtn.y, clearSaveBtn.w, clearSaveBtn.h); ctx.fillStyle = '#FFF'; ctx.font = '16px Arial'; ctx.textAlign = 'center'; ctx.fillText('清除存檔', clearSaveBtn.x + clearSaveBtn.w / 2, clearSaveBtn.y + 25); ctx.textAlign = 'left';
+            ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText(`首次互動: ${formatTime(firstInteractionTime)}`, 10, canvas.height - 35); ctx.fillText(`最後互動: ${formatTime(lastInteractionTime)}`, 10, canvas.height - 10);
         }
 
-        function loop(timestamp) { 
-            let rawDt = (timestamp - lastTime) / 1000;
-            let dt = Math.max(0, Math.min(0.1, rawDt)); 
-            lastTime = timestamp; 
-            update(dt); 
-            draw(); 
-            requestAnimationFrame(loop); 
-        }
+        function loop(timestamp) { let rawDt = (timestamp - lastTime) / 1000; let dt = Math.max(0, Math.min(0.1, rawDt)); lastTime = timestamp; update(dt); draw(); requestAnimationFrame(loop); }
         requestAnimationFrame(loop);
 
         function pSBC(p, c0) { let r, g, b, P, i, f, Math_round = Math.round, d = c0.length>5?c0:null; if (!d) return null; P = p < 0; i = parseInt; f = d.slice(1); P = p < 0 ? p * -1 : p; P = 1 - P; r = i(f.slice(0, 2), 16); g = i(f.slice(2, 4), 16); b = i(f.slice(4, 6), 16); r = Math_round(r * P); g = Math_round(g * P); b = Math_round(b * P); return "#" + (0x1000000 + (r * 0x10000) + (g * 0x100) + b).toString(16).slice(1); }
