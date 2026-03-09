@@ -3,9 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨 - 存檔紀錄版</title>
+    <title>伐木大亨 - 護眼存檔版</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #7CFC00; touch-action: none; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; user-select: none; -webkit-user-select: none; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            background-color: #C7EDCC; /* 護眼豆沙綠 */
+            touch-action: none; 
+            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; 
+            user-select: none; 
+            -webkit-user-select: none; 
+        }
         canvas { display: block; }
     </style>
 </head>
@@ -49,6 +58,24 @@
             { radius: 30, trunkH: 35, color: '#006400', label: '中大樹' },    
             { radius: 35, trunkH: 40, color: '#004d00', label: '樹(可砍)' }   
         ];
+
+        // 必須在調用前宣告的構建函式
+        function buildForest(cols, rows, oldCols = 0, oldRows = 0) {
+            for (let i = 0; i < cols; i++) {
+                for (let j = 0; j < rows; j++) {
+                    if (i >= oldCols || j >= oldRows) {
+                        trees.push({ x: forestStartX + i * spacing, y: startY + j * spacing, size: treeSize, isCut: false, isTargeted: false, respawnTimer: 0, currentStage: 6 });
+                    }
+                }
+            }
+        }
+
+        function updateUIPositions() {
+            let bottomY = startY + (forestRows * spacing);
+            upgrades.speed.box.y = bottomY + 30;
+            upgrades.auto.box.y = bottomY + 30;
+            upgrades.expand.box.y = bottomY + 90;
+        }
 
         const upgrades = {
             speed: { box: {x: forestStartX, y: 0, w: 140, h: 50}, title: '砍樹效率 (-1s)', costVal: 50, level: 1, cd: 0, req: function() { return player.maxChopTime > 1; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '已滿等'; }, action: function() { player.maxChopTime -= 1; this.level++; this.costVal = Math.floor(this.costVal * 1.5); } },
@@ -197,7 +224,6 @@
 
             if (closestTree) {
                 if (choppingTree !== closestTree) { 
-                    // 【Bug修復】：換樹或離開時，把原本正在砍的樹復原
                     if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6;
                     choppingTree = closestTree; 
                     player.chopTimer = player.maxChopTime; 
@@ -212,7 +238,6 @@
                     player.wood += 3; choppingTree = null;
                 }
             } else { 
-                // 【Bug修復】：離開樹木範圍時，復原動畫
                 if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6;
                 choppingTree = null; 
             }
@@ -266,7 +291,6 @@
             spawnTimerLog -= dt; if (spawnTimerLog <= 0) { if (customersLog.length < 10) customersLog.push({ need: Math.floor(Math.random() * 7) + 2 }); spawnTimerLog = 2.0; }
             if (upgrades.machineBuy.count > 0) { spawnTimerLumber -= dt; if (spawnTimerLumber <= 0) { if (customersLumber.length < 10) customersLumber.push({ need: Math.floor(Math.random() * 5) + 2 }); spawnTimerLumber = 3.0; } }
 
-            // 自動存檔邏輯
             saveTimer -= dt;
             if (saveTimer <= 0) {
                 saveGame();
@@ -274,7 +298,6 @@
             }
         }
 
-        // 時間格式化工具
         function formatTime(ts) {
             if (!ts) return '無';
             let d = new Date(ts);
@@ -289,7 +312,12 @@
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save(); ctx.translate(-camera.x, -camera.y);
-            ctx.strokeStyle = '#6B8E23'; ctx.lineWidth = 1; for(let i=0; i<WORLD_WIDTH; i+=100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_HEIGHT); ctx.stroke(); } for(let i=0; i<WORLD_HEIGHT; i+=100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(WORLD_WIDTH, i); ctx.stroke(); }
+            
+            ctx.strokeStyle = 'rgba(107, 142, 35, 0.4)'; // 調淡網格線
+            ctx.lineWidth = 1; 
+            for(let i=0; i<WORLD_WIDTH; i+=100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_HEIGHT); ctx.stroke(); } 
+            for(let i=0; i<WORLD_HEIGHT; i+=100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(WORLD_WIDTH, i); ctx.stroke(); }
+            
             drawCounter(counterLog, "(原木)", "木", false, upgrades.cashierLog); drawCustomers(counterLog, customersLog); if (upgrades.machineBuy.count > 0) { drawCounter(counterLumber, "(木材)", "材", true, upgrades.cashierLumber); drawCustomers(counterLumber, customersLumber); }
             ctx.fillStyle = '#EEE8AA'; ctx.fillRect(autoWoodZone.x, autoWoodZone.y, autoWoodZone.w, autoWoodZone.h); ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText(`原木集中區`, autoWoodZone.x + 20, autoWoodZone.y + 35); ctx.fillText(`存量: ${autoWoodZone.wood}`, autoWoodZone.x + 20, autoWoodZone.y + 60);
             machines.forEach(m => { ctx.fillStyle = '#808080'; ctx.fillRect(m.x, m.y, m.w, m.h); ctx.fillStyle = '#FFF'; ctx.font = '14px Arial'; ctx.fillText('去皮剖木機', m.x + 15, m.y + 35); ctx.fillStyle = '#DEB887'; ctx.fillRect(m.x + m.w, m.y + 10, 40, 40); ctx.fillStyle = '#333'; ctx.fillText(`入:${m.inputWood}`, m.x + m.w + 5, m.y + 35); ctx.fillStyle = '#F4A460'; ctx.fillRect(m.x - 40, m.y + 10, 40, 40); ctx.fillStyle = '#333'; ctx.fillText(`出:${m.outputLumber}`, m.x - 35, m.y + 35); ctx.fillStyle = '#4682B4'; ctx.beginPath(); ctx.arc(m.x + m.w/2, m.y - 15, 12, 0, Math.PI * 2); ctx.fill(); if(m.timer > 0) { let prog = 1 - (m.timer / upgrades.machineSpeed.maxTime); ctx.fillStyle = 'red'; ctx.fillRect(m.x + 10, m.y - 5, 80, 4); ctx.fillStyle = 'lime'; ctx.fillRect(m.x + 10, m.y - 5, 80 * prog, 4); } });
@@ -300,7 +328,7 @@
                 let cx = tree.x + treeSize / 2; let cy = tree.y + treeSize / 2;
                 if (tree.currentStage === 0) {
                     ctx.fillStyle = stageData.color; ctx.fillRect(tree.x + 5, tree.y + treeSize - stageData.trunkH, treeSize - 10, stageData.trunkH);
-                    if (tree.isCut) { ctx.fillStyle = '#FFF'; ctx.font = '12px Arial'; ctx.fillText(`${Math.ceil(tree.respawnTimer)}s`, tree.x + 5, tree.y + treeSize - 15); }
+                    if (tree.isCut) { ctx.fillStyle = '#333'; ctx.font = '12px Arial'; ctx.fillText(`${Math.ceil(tree.respawnTimer)}s`, tree.x + 5, tree.y + treeSize - 15); }
                 } else {
                     ctx.fillStyle = '#8B4513'; let trunkW = treeSize / 3; ctx.fillRect(cx - trunkW / 2, cy + treeSize / 2 - stageData.trunkH, trunkW, stageData.trunkH);
                     ctx.fillStyle = stageData.color; let leafY = cy + treeSize / 2 - stageData.trunkH;
@@ -322,7 +350,6 @@
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; ctx.beginPath(); ctx.arc(joystick.x, joystick.y, joystick.radius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.beginPath(); ctx.arc(joystick.x + joystick.knobX, joystick.y + joystick.knobY, 25, 0, Math.PI * 2); ctx.fill();
             if (uiOkBtn.active && uiOkBtn.target) { ctx.fillStyle = '#32CD32'; ctx.fillRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); ctx.strokeStyle = '#006400'; ctx.lineWidth = 4; ctx.strokeRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); ctx.fillStyle = '#FFF'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(`確認購買 ($${uiOkBtn.target.cost()})`, uiOkBtn.x + uiOkBtn.w / 2, uiOkBtn.y + 35); ctx.textAlign = 'left'; }
             
-            // 繪製時間紀錄 (左下角)
             ctx.fillStyle = '#333'; ctx.font = '14px Arial';
             ctx.fillText(`首次互動: ${formatTime(firstInteractionTime)}`, 10, canvas.height - 30);
             ctx.fillText(`最後互動: ${formatTime(lastInteractionTime)}`, 10, canvas.height - 10);
