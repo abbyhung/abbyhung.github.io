@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>伐木大亨</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f0f8ff;
+            /* 禁用瀏覽器預設的觸控滑動行為 */
+            touch-action: none; 
+            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 自動適應螢幕大小
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // 遊戲核心變數
+        let money = 0;
+        let lastTime = performance.now();
+
+        // 人物狀態
+        const player = {
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2,
+            radius: 15,
+            speed: 250,
+            wood: 0,
+            targetX: window.innerWidth / 2,
+            targetY: window.innerHeight / 2
+        };
+
+        // 收銀台設定
+        const counter = {
+            x: 50,
+            y: window.innerHeight - 150,
+            width: 120,
+            height: 60
+        };
+
+        // 客人設定 (需求 2~8 根)
+        let customer = {
+            active: true,
+            need: Math.floor(Math.random() * 7) + 2, 
+            waitTimer: 0
+        };
+
+        // 建立 5*5 森林
+        const trees = [];
+        const treeSize = 40;
+        const startX = window.innerWidth - 350;
+        const startY = 50;
+        const spacing = 60;
+
+        for (let i = 0; i < 5; i++) {
+            for (let j = 0; j < 5; j++) {
+                trees.push({
+                    x: startX + i * spacing,
+                    y: startY + j * spacing,
+                    size: treeSize,
+                    isCut: false,
+                    respawnTimer: 0 // 重生倒數
+                });
+            }
+        }
+
+        // 處理滑鼠與觸控移動
+        function setTarget(e) {
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            
+            // 處理手機觸控
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+
+            if (clientX !== undefined && clientY !== undefined) {
+                player.targetX = clientX;
+                player.targetY = clientY;
+            }
+        }
+
+        // 綁定事件監聽器
+        window.addEventListener('mousedown', setTarget);
+        window.addEventListener('mousemove', (e) => {
+            if (e.buttons === 1) setTarget(e); // 拖曳移動
+        });
+        window.addEventListener('touchstart', setTarget, {passive: false});
+        window.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // 防止畫面滾動
+            setTarget(e);
+        }, {passive: false});
+
+        // 遊戲主迴圈（更新邏輯）
+        function update(dt) {
+            // 1. 人物移動
+            let dx = player.targetX - player.x;
+            let dy = player.targetY - player.y;
+            let dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > 5) {
+                player.x += (dx / dist) * player.speed * dt;
+                player.y += (dy / dist) * player.speed * dt;
+            }
+
+            // 2. 判斷砍樹邏輯
+            trees.forEach(tree => {
+                if (!tree.isCut) {
+                    let treeCX = tree.x + tree.size / 2;
+                    let treeCY = tree.y + tree.size / 2;
+                    let d = Math.sqrt(Math.pow(player.x - treeCX, 2) + Math.pow(player.y - treeCY, 2));
+                    
+                    // 若人物靠近樹木
+                    if (d < player.radius + tree.size / 2 + 5) {
+                        tree.isCut = true;
+                        tree.respawnTimer = 10; // 設定重生時間為 10 秒
+                        player.wood += 3;       // 獲得 3 根木頭
+                    }
+                } else {
+                    // 計算重生時間
+                    tree.respawnTimer -= dt;
+                    if (tree.respawnTimer <= 0) {
+                        tree.isCut = false;
+                    }
+                }
+            });
+
+            // 3. 收銀台與客人邏輯
+            let counterCX = counter.x + counter.width / 2;
+            let counterCY = counter.y + counter.height / 2;
+            let distToCounter = Math.sqrt(Math.pow(player.x - counterCX, 2) + Math.pow(player.y - counterCY, 2));
+            
+            // 人物靠近收銀台且有客人在等
+            if (distToCounter < player.radius + 80 && customer.active) {
+                if (player.wood > 0) {
+                    let sellAmount = Math.min(player.wood, customer.need);
+                    player.wood -= sellAmount;
+                    customer.need -= sellAmount;
+                    money += sellAmount * 2; // 一根木頭 2 塊錢
+                    
+                    // 客人需求滿足，準備換下一位
+                    if (customer.need <= 0) {
+                        customer.active = false;
+                        customer.waitTimer = 2; // 下一位客人 2 秒後出現
+                    }
+                }
+            }
+
+            // 產生新客人
+            if (!customer.active) {
+                customer.waitTimer -= dt;
+                if (customer.waitTimer <= 0) {
+                    customer.active = true;
+                    customer.need = Math.floor(Math.random() * 7) + 2; // 重新產生 2~8 的需求
+                }
+            }
+        }
+
+        // 畫面繪製
+        function draw() {
+            // 清空畫面
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 畫收銀台
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(counter.x, counter.y, counter.width, counter.height);
+            ctx.fillStyle = '#FFF';
+            ctx.font = '20px Arial';
+            ctx.fillText('收銀台', counter.x + 25, counter.y + 35);
+
+            // 畫客人
+            if (customer.active) {
+                ctx.fillStyle = '#FF6347';
+                ctx.beginPath();
+                ctx.arc(counter.x + counter.width / 2, counter.y - 30, 20, 0, Math.PI * 2);
+                ctx.fill();
+                // 顯示客人需求
+                ctx.fillStyle = '#333';
+                ctx.font = '16px Arial';
+                ctx.fillText(`需要: ${customer.need} 木頭`, counter.x + 10, counter.y - 60);
+            }
+
+            // 畫森林
+            trees.forEach(tree => {
+                if (tree.isCut) {
+                    // 砍伐後的樹樁
+                    ctx.fillStyle = '#DEB887';
+                    ctx.fillRect(tree.x + 10, tree.y + 10, tree.size - 20, tree.size - 20);
+                    // 顯示重生倒數
+                    ctx.fillStyle = '#888';
+                    ctx.font = '12px Arial';
+                    ctx.fillText(`${Math.ceil(tree.respawnTimer)}s`, tree.x + 10, tree.y);
+                } else {
+                    // 茂盛的樹
+                    ctx.fillStyle = '#228B22';
+                    ctx.fillRect(tree.x, tree.y, tree.size, tree.size);
+                }
+            });
+
+            // 畫人物
+            ctx.fillStyle = '#4169E1';
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 畫 UI 資訊
+            ctx.fillStyle = '#333';
+            ctx.font = '24px Arial';
+            ctx.fillText(`金錢: $${money}`, 20, 40);
+            ctx.fillText(`身上木頭: ${player.wood} 根`, 20, 80);
+        }
+
+        // 驅動迴圈
+        function loop(timestamp) {
+            let dt = (timestamp - lastTime) / 1000;
+            if (dt > 0.1) dt = 0.1; // 防止切換視窗導致 dt 過大
+            lastTime = timestamp;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(loop);
+        }
+
+        // 啟動遊戲
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
