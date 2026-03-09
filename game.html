@@ -32,18 +32,17 @@
         let cashierTimerLog = 0; let cashierTimerLumber = 0; const customersLog = []; const customersLumber = [];
         let spawnTimerLog = 0; let spawnTimerLumber = 0;
         const trees = [];
-        const treeSize = 40; // 這是樹幹的碰撞基準大小
+        const treeSize = 40; 
 
-        // 【新增】：定義樹木的 7 個視覺階段資料 (由小到大)
-        // 0:樹樁, 1:小小樹, 2:小樹, 3:中小樹, 4:中樹, 5:中大樹, 6:大樹(可砍)
+        // 樹木的 7 個視覺階段資料 (由小到大)
         const TREE_STAGES = [
-            { radius: 0, trunkH: 10, color: '#DEB887', label: '樹樁' },        // 0 (isCut = true)
-            { radius: 10, trunkH: 15, color: '#9ACD32', label: '小小樹' },    // 1
-            { radius: 15, trunkH: 20, color: '#32CD32', label: '小樹' },      // 2
-            { radius: 20, trunkH: 25, color: '#228B22', label: '中小樹' },    // 3
-            { radius: 25, trunkH: 30, color: '#008000', label: '中樹' },      // 4
-            { radius: 30, trunkH: 35, color: '#006400', label: '中大樹' },    // 5
-            { radius: 35, trunkH: 40, color: '#004d00', label: '樹(可砍)' }   // 6 (完全體)
+            { radius: 0, trunkH: 10, color: '#DEB887', label: '樹樁' },        
+            { radius: 10, trunkH: 15, color: '#9ACD32', label: '小小樹' },    
+            { radius: 15, trunkH: 20, color: '#32CD32', label: '小樹' },      
+            { radius: 20, trunkH: 25, color: '#228B22', label: '中小樹' },    
+            { radius: 25, trunkH: 30, color: '#008000', label: '中樹' },      
+            { radius: 30, trunkH: 35, color: '#006400', label: '中大樹' },    
+            { radius: 35, trunkH: 40, color: '#004d00', label: '樹(可砍)' }   
         ];
 
         const upgrades = {
@@ -92,26 +91,26 @@
             camera.x = Math.max(0, Math.min(camera.x, WORLD_WIDTH - canvas.width));
             camera.y = Math.max(0, Math.min(camera.y, WORLD_HEIGHT - canvas.height));
 
-            // 【重點優化】：樹木生長與砍伐鎖定邏輯
             let closestTree = null;
             let minDistance = Infinity;
 
             trees.forEach(tree => {
-                if (!tree.isCut && tree.currentStage === 6) { // 只有生長完成(Stage 6)才能砍
+                // 【核心修復】：除了完全體的樹 (Stage 6)，如果這棵樹是「目前正在砍的樹」，也要持續判定進入範圍！
+                if (!tree.isCut && (tree.currentStage === 6 || tree === choppingTree)) { 
                     let dist = Math.hypot(player.x - (tree.x + treeSize/2), player.y - (tree.y + treeSize/2));
-                    if (dist < player.radius + treeSize/2 + 10 && dist < minDistance) { minDistance = dist; closestTree = tree; }
+                    if (dist < player.radius + treeSize/2 + 10 && dist < minDistance) { 
+                        minDistance = dist; 
+                        closestTree = tree; 
+                    }
                 } else if (tree.isCut) {
-                    // 【重生邏輯】：重生時間 30 秒，每 5 秒變化一次
                     tree.respawnTimer -= dt;
-                    // 計算目前應該處於哪個生長階段 (0~6)
-                    // 30s -> stage 0, 25s -> stage 1, ..., 0s -> stage 6
                     let elapsed = 30.0 - tree.respawnTimer;
                     tree.currentStage = Math.min(6, Math.floor(elapsed / 5.0)); 
 
                     if (tree.respawnTimer <= 0) { 
                         tree.isCut = false; 
                         tree.isTargeted = false; 
-                        tree.currentStage = 6; // 確保完全生長
+                        tree.currentStage = 6; 
                     }
                 }
             });
@@ -120,17 +119,13 @@
                 if (choppingTree !== closestTree) { choppingTree = closestTree; player.chopTimer = player.maxChopTime; }
                 player.chopTimer -= dt;
 
-                // 【砍伐動畫邏輯】：原本 6 秒，對應 6 個生長階段。動態抽換圖片。
-                // 根據讀條進度比例，計算應該顯示哪一個階段 (從 6 降到 1)
-                let progressRatio = player.chopTimer / player.maxChopTime; // 1.0 -> 0.0
-                // 將 0.0~1.0 映射到 Stage 1~6 (不含樹樁0，因為還沒砍完)
-                // 例如 6s 時，每秒換一個；1s 時，直接從大變小。
+                let progressRatio = player.chopTimer / player.maxChopTime; 
                 let animStage = Math.max(1, Math.ceil(progressRatio * 6));
                 choppingTree.currentStage = animStage;
 
                 if (player.chopTimer <= 0) {
                     choppingTree.isCut = true;
-                    choppingTree.currentStage = 0; // 變為樹樁
+                    choppingTree.currentStage = 0; 
                     choppingTree.respawnTimer = 30.0;
                     player.wood += 3;
                     choppingTree = null;
@@ -150,7 +145,6 @@
                     else { bot.x += (tCX - bot.x) / dist * bot.speed * dt; bot.y += (tCY - bot.y) / dist * bot.speed * dt; }
                 } else if (bot.state === 'chopping') {
                     bot.chopTimer -= dt;
-                    // 小幫手砍伐同樣套用視覺變化
                     let progressRatio = bot.chopTimer / player.maxChopTime;
                     bot.targetTree.currentStage = Math.max(1, Math.ceil(progressRatio * 6));
 
@@ -252,41 +246,30 @@
             machines.forEach(m => { ctx.fillStyle = '#808080'; ctx.fillRect(m.x, m.y, m.w, m.h); ctx.fillStyle = '#FFF'; ctx.font = '14px Arial'; ctx.fillText('去皮剖木機', m.x + 15, m.y + 35); ctx.fillStyle = '#DEB887'; ctx.fillRect(m.x + m.w, m.y + 10, 40, 40); ctx.fillStyle = '#333'; ctx.fillText(`入:${m.inputWood}`, m.x + m.w + 5, m.y + 35); ctx.fillStyle = '#F4A460'; ctx.fillRect(m.x - 40, m.y + 10, 40, 40); ctx.fillStyle = '#333'; ctx.fillText(`出:${m.outputLumber}`, m.x - 35, m.y + 35); ctx.fillStyle = '#4682B4'; ctx.beginPath(); ctx.arc(m.x + m.w/2, m.y - 15, 12, 0, Math.PI * 2); ctx.fill(); if(m.timer > 0) { let prog = 1 - (m.timer / upgrades.machineSpeed.maxTime); ctx.fillStyle = 'red'; ctx.fillRect(m.x + 10, m.y - 5, 80, 4); ctx.fillStyle = 'lime'; ctx.fillRect(m.x + 10, m.y - 5, 80 * prog, 4); } });
             Object.values(upgrades).forEach(up => drawButton(up));
 
-            // 【新增】：複雜的樹木生長/砍伐動畫繪製
             trees.forEach(tree => {
                 let stageData = TREE_STAGES[tree.currentStage];
                 let cx = tree.x + treeSize / 2;
                 let cy = tree.y + treeSize / 2;
 
                 if (tree.currentStage === 0) {
-                    // 繪製樹樁 (一個扁平的矩形)
                     ctx.fillStyle = stageData.color;
                     ctx.fillRect(tree.x + 5, tree.y + treeSize - stageData.trunkH, treeSize - 10, stageData.trunkH);
-                    // 簡單的重生倒數文字
                     if (tree.isCut) {
                         ctx.fillStyle = '#FFF'; ctx.font = '12px Arial';
                         ctx.fillText(`${Math.ceil(tree.respawnTimer)}s`, tree.x + 5, tree.y + treeSize - 15);
                     }
                 } else {
-                    // 繪製樹幹 (咖啡色)
                     ctx.fillStyle = '#8B4513';
                     let trunkW = treeSize / 3;
                     ctx.fillRect(cx - trunkW / 2, cy + treeSize / 2 - stageData.trunkH, trunkW, stageData.trunkH);
 
-                    // 繪製樹葉 (多層圓形疊加，增加層次感)
                     ctx.fillStyle = stageData.color;
                     let leafY = cy + treeSize / 2 - stageData.trunkH;
                     
-                    // 下層樹葉
                     ctx.beginPath(); ctx.arc(cx, leafY, stageData.radius, 0, Math.PI * 2); ctx.fill();
-                    // 中層樹葉 (稍微偏上，顏色淡一點點)
-                    ctx.fillStyle = this.pSBC ? pSBC(0.1, stageData.color) : stageData.color; // 簡單亮化
+                    ctx.fillStyle = this.pSBC ? pSBC(0.1, stageData.color) : stageData.color; 
                     ctx.beginPath(); ctx.arc(cx, leafY - stageData.radius / 2, stageData.radius * 0.8, 0, Math.PI * 2); ctx.fill();
-                    // 上層樹葉
                     ctx.beginPath(); ctx.arc(cx, leafY - stageData.radius, stageData.radius * 0.6, 0, Math.PI * 2); ctx.fill();
-
-                    // 【新增】：開發者除錯用標籤 (可見當前階段名稱)
-                    // ctx.fillStyle = '#FFF'; ctx.font = '10px Arial'; ctx.fillText(stageData.label, tree.x, tree.y);
                 }
             });
 
@@ -306,7 +289,6 @@
         function loop(timestamp) { let dt = (timestamp - lastTime) / 1000; if (dt > 0.1) dt = 0.1; lastTime = timestamp; update(dt); draw(); requestAnimationFrame(loop); }
         requestAnimationFrame(loop);
 
-        // 簡單的顏色亮化函式，增加樹葉層次感
         function pSBC(p, c0) { let r, g, b, P, i, f, h, Math_round = Math.round, d = CID(c0); if (!d) return null; P = p < 0; i = parseInt, f = d.slice(1), h = c0.length > 9, P = p < 0 ? p * -1 : p, P = 1 - P, r = i(f.slice(0, 2), 16), g = i(f.slice(2, 4), 16), b = i(f.slice(4, 6), 16), r = Math_round(r * P), g = Math_round(g * P), b = Math_round(b * P); return "#" + (0x1000000 + (r * 0x10000) + (g * 0x100) + b).toString(16).slice(1); }
         function CID(c) { if (c.length < 5) return null; return c; }
     </script>
