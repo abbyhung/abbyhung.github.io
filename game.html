@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨</title>
+    <title>伐木大亨2</title>
     <style>
         body {
             margin: 0;
@@ -25,10 +25,12 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // 升級區塊設定 (初始值，會在 resize 中重新定位)
+        // 升級區塊設定
         const upgrades = {
-            speed: { x: 0, y: 0, w: 140, h: 60, cost: 50, level: 1, cooldown: 0 },
-            auto: { x: 0, y: 0, w: 140, h: 60, cost: 100, count: 0, maxCount: 5, cooldown: 0 }
+            speed: { x: 0, y: 0, w: 140, h: 50, cost: 50, level: 1, cooldown: 0 },
+            auto: { x: 0, y: 0, w: 140, h: 50, cost: 100, count: 0, maxCount: 5, cooldown: 0 },
+            transporter: { x: 0, y: 0, w: 140, h: 50, costs: [50, 150, 750], count: 0, maxCount: 3, cooldown: 0 },
+            cashier: { x: 0, y: 0, w: 140, h: 50, cost: 200, bought: false, cooldown: 0 }
         };
 
         const autoWoodZone = {
@@ -44,18 +46,24 @@
             
             // 右側：森林起始 X 軸與底部 Y 軸
             let forestStartX = canvas.width - 350;
-            let forestBottomY = 50 + (5 * 60); // startY + 5排 * spacing
+            let forestBottomY = 50 + (5 * 60); 
             
-            // 將購買區移至森林區下方
+            // 購買區改為 2x2 排列
             upgrades.speed.x = forestStartX;
-            upgrades.speed.y = forestBottomY + 40;
+            upgrades.speed.y = forestBottomY + 30;
             
-            upgrades.auto.x = forestStartX + 160;
-            upgrades.auto.y = forestBottomY + 40;
+            upgrades.auto.x = forestStartX + 150;
+            upgrades.auto.y = forestBottomY + 30;
 
-            // 木頭集中區放在購買區下方
-            autoWoodZone.x = forestStartX + 80;
-            autoWoodZone.y = forestBottomY + 120;
+            upgrades.transporter.x = forestStartX;
+            upgrades.transporter.y = forestBottomY + 90;
+
+            upgrades.cashier.x = forestStartX + 150;
+            upgrades.cashier.y = forestBottomY + 90;
+
+            // 木頭集中區往下移
+            autoWoodZone.x = forestStartX + 75;
+            autoWoodZone.y = forestBottomY + 160;
         }
 
         let money = 0;
@@ -85,8 +93,10 @@
             money: 0
         };
 
-        // 自動小幫手
+        // 自動實體設定
         const autoChoppers = [];
+        const transporters = [];
+        let cashierTimer = 0; // 收銀員結帳間隔
 
         // 客人設定
         const customers = [];
@@ -113,7 +123,7 @@
         }
 
         window.addEventListener('resize', resize);
-        resize(); // 初始化定位
+        resize();
 
         function setTarget(e) {
             let clientX = e.clientX;
@@ -249,7 +259,43 @@
                 }
             });
 
-            // 4. 集中區收集邏輯
+            // 3.5 自動運送員邏輯
+            transporters.forEach(t => {
+                if (t.state === 'idle') {
+                    if (autoWoodZone.wood > 0) t.state = 'moving_to_zone';
+                } else if (t.state === 'moving_to_zone') {
+                    let zCX = autoWoodZone.x + autoWoodZone.w / 2;
+                    let zCY = autoWoodZone.y + autoWoodZone.h / 2;
+                    let dist = Math.hypot(zCX - t.x, zCY - t.y);
+                    
+                    if (dist < 5) {
+                        let take = Math.min(autoWoodZone.wood, 5 - t.wood); // 每次最多拿5根
+                        autoWoodZone.wood -= take;
+                        t.wood += take;
+                        if (t.wood > 0) t.state = 'moving_to_counter';
+                        else t.state = 'idle';
+                    } else {
+                        t.x += (zCX - t.x) / dist * t.speed * dt;
+                        t.y += (zCY - t.y) / dist * t.speed * dt;
+                    }
+                } else if (t.state === 'moving_to_counter') {
+                    let zoneWidth = counter.width / 3;
+                    let rightZoneCX = counter.x + zoneWidth * 2.5;
+                    let counterCY = counter.y + counter.height / 2;
+                    let dist = Math.hypot(rightZoneCX - t.x, counterCY - t.y);
+
+                    if (dist < 5) {
+                        counter.wood += t.wood;
+                        t.wood = 0;
+                        t.state = 'idle';
+                    } else {
+                        t.x += (rightZoneCX - t.x) / dist * t.speed * dt;
+                        t.y += (counterCY - t.y) / dist * t.speed * dt;
+                    }
+                }
+            });
+
+            // 4. 集中區玩家收集邏輯
             let distToAutoZone = Math.hypot(player.x - (autoWoodZone.x + autoWoodZone.w/2), player.y - (autoWoodZone.y + autoWoodZone.h/2));
             if (distToAutoZone < player.radius + autoWoodZone.w/2 + 10 && autoWoodZone.wood > 0) {
                 player.wood += autoWoodZone.wood;
@@ -259,10 +305,15 @@
             // 5. 升級區互動邏輯
             if (upgrades.speed.cooldown > 0) upgrades.speed.cooldown -= dt;
             if (upgrades.auto.cooldown > 0) upgrades.auto.cooldown -= dt;
+            if (upgrades.transporter.cooldown > 0) upgrades.transporter.cooldown -= dt;
+            if (upgrades.cashier.cooldown > 0) upgrades.cashier.cooldown -= dt;
 
-            let inSpeedZone = Math.abs(player.x - (upgrades.speed.x + upgrades.speed.w/2)) < upgrades.speed.w/2 &&
-                              Math.abs(player.y - (upgrades.speed.y + upgrades.speed.h/2)) < upgrades.speed.h/2;
-            if (inSpeedZone && upgrades.speed.cooldown <= 0 && money >= upgrades.speed.cost && player.maxChopTime > 1) {
+            // 判斷碰撞輔助函式
+            const inZone = (px, py, box) => {
+                return Math.abs(px - (box.x + box.w/2)) < box.w/2 && Math.abs(py - (box.y + box.h/2)) < box.h/2;
+            };
+
+            if (inZone(player.x, player.y, upgrades.speed) && upgrades.speed.cooldown <= 0 && money >= upgrades.speed.cost && player.maxChopTime > 1) {
                 money -= upgrades.speed.cost;
                 player.maxChopTime -= 1;
                 upgrades.speed.level += 1;
@@ -270,9 +321,7 @@
                 upgrades.speed.cooldown = 1.0;
             }
 
-            let inAutoZone = Math.abs(player.x - (upgrades.auto.x + upgrades.auto.w/2)) < upgrades.auto.w/2 &&
-                             Math.abs(player.y - (upgrades.auto.y + upgrades.auto.h/2)) < upgrades.auto.h/2;
-            if (inAutoZone && upgrades.auto.cooldown <= 0 && money >= upgrades.auto.cost && upgrades.auto.count < upgrades.auto.maxCount) {
+            if (inZone(player.x, player.y, upgrades.auto) && upgrades.auto.cooldown <= 0 && money >= upgrades.auto.cost && upgrades.auto.count < upgrades.auto.maxCount) {
                 money -= upgrades.auto.cost;
                 upgrades.auto.count += 1;
                 upgrades.auto.cost = Math.floor(upgrades.auto.cost * 1.5);
@@ -289,46 +338,89 @@
                 });
             }
 
-            // 6. 客人生成邏輯
+            if (inZone(player.x, player.y, upgrades.transporter) && upgrades.transporter.cooldown <= 0 && upgrades.transporter.count < upgrades.transporter.maxCount) {
+                let currentCost = upgrades.transporter.costs[upgrades.transporter.count];
+                if (money >= currentCost) {
+                    money -= currentCost;
+                    upgrades.transporter.count += 1;
+                    upgrades.transporter.cooldown = 1.0;
+                    
+                    transporters.push({
+                        x: autoWoodZone.x + autoWoodZone.w / 2,
+                        y: autoWoodZone.y + autoWoodZone.h / 2,
+                        speed: 200,
+                        wood: 0,
+                        state: 'idle'
+                    });
+                }
+            }
+
+            if (inZone(player.x, player.y, upgrades.cashier) && upgrades.cashier.cooldown <= 0 && !upgrades.cashier.bought && money >= upgrades.cashier.cost) {
+                money -= upgrades.cashier.cost;
+                upgrades.cashier.bought = true;
+                upgrades.cashier.cooldown = 1.0;
+            }
+
+            // 6. 客人生成邏輯 (限制最多 10 人)
             customerSpawnTimer -= dt;
             if (customerSpawnTimer <= 0) {
-                customers.push({ need: Math.floor(Math.random() * 7) + 2 });
+                if (customers.length < 10) {
+                    customers.push({ need: Math.floor(Math.random() * 7) + 2 });
+                }
                 customerSpawnTimer = 2.0;
             }
 
-            // 7. 收銀台互動邏輯
+            // 7. 收銀台與結帳邏輯
             const zoneWidth = counter.width / 3;
             const leftZoneCX = counter.x + zoneWidth / 2;
             const centerZoneCX = counter.x + zoneWidth * 1.5;
             const rightZoneCX = counter.x + zoneWidth * 2.5;
             const counterCY = counter.y + counter.height / 2;
-
-            let distToLeft = Math.hypot(player.x - leftZoneCX, player.y - counterCY);
-            let distToCenter = Math.hypot(player.x - centerZoneCX, player.y - counterCY);
-            let distToRight = Math.hypot(player.x - rightZoneCX, player.y - counterCY);
             const interactRange = player.radius + zoneWidth / 2 + 10;
 
+            // [玩家互動] 放木頭
+            let distToRight = Math.hypot(player.x - rightZoneCX, player.y - counterCY);
             if (distToRight < interactRange && player.wood > 0) {
                 counter.wood += player.wood;
                 player.wood = 0;
             }
 
-            if (distToCenter < interactRange && counter.wood > 0 && customers.length > 0) {
-                let currentCustomer = customers[0];
-                let sellAmount = Math.min(counter.wood, currentCustomer.need);
-                
-                counter.wood -= sellAmount;
-                currentCustomer.need -= sellAmount;
-                counter.money += sellAmount * 2; 
-                
-                if (currentCustomer.need <= 0) {
-                    customers.shift();
+            // [玩家互動] 手動結帳
+            let distToCenter = Math.hypot(player.x - centerZoneCX, player.y - counterCY);
+            if (distToCenter < interactRange && !upgrades.cashier.bought && counter.wood > 0 && customers.length > 0) {
+                processTransaction();
+            }
+
+            // [自動收銀員] 自動結帳
+            if (upgrades.cashier.bought) {
+                cashierTimer -= dt;
+                if (cashierTimer <= 0) {
+                    if (counter.wood > 0 && customers.length > 0) {
+                        processTransaction();
+                    }
+                    cashierTimer = 0.5; // 每 0.5 秒處理一次結帳
                 }
             }
 
+            // [玩家互動] 拿錢
+            let distToLeft = Math.hypot(player.x - leftZoneCX, player.y - counterCY);
             if (distToLeft < interactRange && counter.money > 0) {
                 money += counter.money;
                 counter.money = 0;
+            }
+        }
+
+        // 結帳處理共用邏輯
+        function processTransaction() {
+            let currentCustomer = customers[0];
+            let sellAmount = Math.min(counter.wood, currentCustomer.need);
+            
+            counter.wood -= sellAmount;
+            currentCustomer.need -= sellAmount;
+            counter.money += sellAmount * 2; 
+            
+            if (currentCustomer.need <= 0) {
+                customers.shift();
             }
         }
 
@@ -350,13 +442,25 @@
             ctx.fillStyle = '#FFF';
             ctx.fillText('結帳區', counter.x + zoneWidth + 15, counter.y + 45);
 
+            // 若購買了自動收銀員，繪製 NPC
+            if (upgrades.cashier.bought) {
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(counter.x + zoneWidth * 1.5, counter.y + 20, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#FFF';
+                ctx.font = '12px Arial';
+                ctx.fillText('收銀員', counter.x + zoneWidth + 22, counter.y + 70);
+            }
+
             ctx.fillStyle = '#DEB887';
             ctx.fillRect(counter.x + zoneWidth * 2, counter.y, zoneWidth, counter.height);
             ctx.fillStyle = '#333';
+            ctx.font = '16px Arial';
             ctx.fillText('放木區', counter.x + zoneWidth * 2 + 15, counter.y + 30);
             ctx.fillText(`木:${counter.wood}`, counter.x + zoneWidth * 2 + 15, counter.y + 60);
             
-            // === 繪製橫向排隊的客人 (在收銀區下方) ===
+            // === 繪製排隊的客人 (限制 10 人) ===
             customers.forEach((c, index) => {
                 if (index > 4) return; 
                 
@@ -373,123 +477,27 @@
                 ctx.fillText(`需:${c.need}`, cx - 15, cy + 5);
             });
             if (customers.length > 5) {
-                ctx.fillText(`+${customers.length - 5} 人排隊中`, counter.x + zoneWidth * 1.5 + (5 * 45), counter.y + counter.height + 35);
+                ctx.fillText(`+${customers.length - 5} 人排隊中 (滿客10人)`, counter.x + zoneWidth * 1.5 + (5 * 45), counter.y + counter.height + 35);
             }
 
-            // === 繪製升級區 (在森林區下方) ===
+            // === 繪製升級區 ===
+            ctx.font = '14px Arial';
+            
+            // 升級速度
             ctx.fillStyle = player.maxChopTime > 1 ? '#ADD8E6' : '#D3D3D3';
             ctx.fillRect(upgrades.speed.x, upgrades.speed.y, upgrades.speed.w, upgrades.speed.h);
             ctx.fillStyle = '#333';
-            ctx.font = '16px Arial';
-            ctx.fillText(player.maxChopTime > 1 ? `升級效率 (-1s)` : `砍樹已滿等`, upgrades.speed.x + 15, upgrades.speed.y + 25);
-            if (player.maxChopTime > 1) {
-                ctx.fillText(`$${upgrades.speed.cost} (Lv.${upgrades.speed.level})`, upgrades.speed.x + 15, upgrades.speed.y + 45);
-            }
+            ctx.fillText(player.maxChopTime > 1 ? `升級效率 (-1s)` : `砍樹已滿等`, upgrades.speed.x + 10, upgrades.speed.y + 20);
+            if (player.maxChopTime > 1) ctx.fillText(`$${upgrades.speed.cost} (Lv.${upgrades.speed.level})`, upgrades.speed.x + 10, upgrades.speed.y + 40);
 
+            // 升級砍樹幫手
             ctx.fillStyle = upgrades.auto.count < upgrades.auto.maxCount ? '#FFB6C1' : '#D3D3D3';
             ctx.fillRect(upgrades.auto.x, upgrades.auto.y, upgrades.auto.w, upgrades.auto.h);
             ctx.fillStyle = '#333';
-            ctx.fillText(upgrades.auto.count < upgrades.auto.maxCount ? `購買小幫手` : `幫手已滿`, upgrades.auto.x + 15, upgrades.auto.y + 25);
-            if (upgrades.auto.count < upgrades.auto.maxCount) {
-                ctx.fillText(`$${upgrades.auto.cost} (${upgrades.auto.count}/5)`, upgrades.auto.x + 15, upgrades.auto.y + 45);
-            }
+            ctx.fillText(upgrades.auto.count < upgrades.auto.maxCount ? `砍樹幫手` : `砍樹幫手滿編`, upgrades.auto.x + 10, upgrades.auto.y + 20);
+            if (upgrades.auto.count < upgrades.auto.maxCount) ctx.fillText(`$${upgrades.auto.cost} (${upgrades.auto.count}/5)`, upgrades.auto.x + 10, upgrades.auto.y + 40);
 
-            // === 繪製集中區 ===
-            ctx.fillStyle = '#EEE8AA';
-            ctx.fillRect(autoWoodZone.x, autoWoodZone.y, autoWoodZone.w, autoWoodZone.h);
-            ctx.fillStyle = '#333';
-            ctx.fillText(`木頭集中區`, autoWoodZone.x + 20, autoWoodZone.y + 35);
-            ctx.fillText(`儲存量: ${autoWoodZone.wood}`, autoWoodZone.x + 20, autoWoodZone.y + 60);
-
-            // === 繪製森林 ===
-            trees.forEach(tree => {
-                if (tree.isCut) {
-                    ctx.fillStyle = '#DEB887';
-                    ctx.fillRect(tree.x + 10, tree.y + 10, tree.size - 20, tree.size - 20);
-                    ctx.fillStyle = '#888';
-                    ctx.font = '12px Arial';
-                    ctx.fillText(`${Math.ceil(tree.respawnTimer)}s`, tree.x + 10, tree.y);
-                } else {
-                    ctx.fillStyle = '#228B22';
-                    ctx.fillRect(tree.x, tree.y, tree.size, tree.size);
-                }
-            });
-
-            // === 繪製自動幫手 ===
-            autoChoppers.forEach(bot => {
-                ctx.fillStyle = '#8A2BE2'; 
-                ctx.beginPath();
-                ctx.arc(bot.x, bot.y, 12, 0, Math.PI * 2);
-                ctx.fill();
-                
-                if (bot.state === 'chopping') {
-                    let barWidth = 30;
-                    let barHeight = 4;
-                    let progress = 1 - (bot.chopTimer / 6.0);
-                    ctx.fillStyle = 'red';
-                    ctx.fillRect(bot.x - barWidth / 2, bot.y - 20, barWidth, barHeight);
-                    ctx.fillStyle = '#32CD32';
-                    ctx.fillRect(bot.x - barWidth / 2, bot.y - 20, barWidth * progress, barHeight);
-                }
-
-                ctx.fillStyle = '#5C3A21';
-                let displayDots = Math.min(bot.wood, 5); 
-                for (let i = 0; i < displayDots; i++) {
-                    let angle = i * (Math.PI * 2 / Math.max(displayDots, 1));
-                    let dotX = bot.x + Math.cos(angle) * 6;
-                    let dotY = bot.y + Math.sin(angle) * 6;
-                    ctx.beginPath();
-                    ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            });
-
-            // === 繪製人物 ===
-            ctx.fillStyle = '#4169E1';
-            ctx.beginPath();
-            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = '#5C3A21';
-            let displayDots = Math.min(player.wood, 10); 
-            for (let i = 0; i < displayDots; i++) {
-                let angle = i * (Math.PI * 2 / Math.max(displayDots, 1));
-                let dotX = player.x + Math.cos(angle) * 8;
-                let dotY = player.y + Math.sin(angle) * 8;
-                ctx.beginPath();
-                ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            if (choppingTree && !choppingTree.isCut) {
-                let barWidth = 40;
-                let barHeight = 6;
-                let progress = 1 - (player.chopTimer / player.maxChopTime);
-                ctx.fillStyle = 'red';
-                ctx.fillRect(player.x - barWidth / 2, player.y - 30, barWidth, barHeight);
-                ctx.fillStyle = '#32CD32';
-                ctx.fillRect(player.x - barWidth / 2, player.y - 30, barWidth * progress, barHeight);
-            }
-            
-            // === 繪製 UI 資訊 ===
-            ctx.fillStyle = '#333';
-            ctx.font = '24px Arial';
-            ctx.fillText(`總資產: $${money}`, 20, 40);
-            ctx.fillText(`身上木頭: ${player.wood} 根`, 20, 80);
-        }
-
-        function loop(timestamp) {
-            let dt = (timestamp - lastTime) / 1000;
-            if (dt > 0.1) dt = 0.1; 
-            lastTime = timestamp;
-
-            update(dt);
-            draw();
-
-            requestAnimationFrame(loop);
-        }
-
-        requestAnimationFrame(loop);
-    </script>
-</body>
-</html>
+            // 升級運送員
+            ctx.fillStyle = upgrades.transporter.count < upgrades.transporter.maxCount ? '#FFDAB9' : '#D3D3D3';
+            ctx.fillRect(upgrades.transporter.x, upgrades.transporter.y, upgrades.transporter.w, upgrades.transporter.h);
+            ctx.fillStyle =
