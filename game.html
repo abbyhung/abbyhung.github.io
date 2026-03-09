@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨 - 經濟平衡版</title>
+    <title>伐木大亨 - 智慧物流版</title>
     <style>
         body { 
             margin: 0; padding: 0; overflow: hidden; background-color: #C7EDCC; 
@@ -77,7 +77,6 @@
             upgrades.expand.box.y = bottomY + 90;
         }
 
-        // ================= 經濟數值平衡區 =================
         const upgrades = {
             speed: { box: {x: forestStartX, y: 0, w: 140, h: 50}, title: '砍樹效率 (-1s)', costVal: 50, level: 1, cd: 0, req: function() { return player.maxChopTime > 1; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '已滿等'; }, action: function() { player.maxChopTime -= 1; this.level++; this.costVal = Math.floor(this.costVal * 1.5); } },
             auto: { box: {x: forestStartX + 150, y: 0, w: 140, h: 50}, title: '砍樹幫手', costVal: 150, count: 0, max: 5, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; this.costVal = Math.floor(this.costVal * 1.5); autoChoppers.push({x: this.box.x + 70, y: this.box.y - 20, speed: 250, wood: 0, state: 'idle'}); } },
@@ -90,7 +89,6 @@
             transC: { box: {x: 600, y: 450, w: 140, h: 50}, title: '運送員C (赴木材區)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transC.push({x: counterLumber.x + 100, y: counterLumber.y + 40, speed: 250, lumber: 0, state: 'idle'}); } },
             cashierLumber: { box: {x: counterLumber.x + 300, y: counterLumber.y + 15, w: 140, h: 50}, title: '自動收銀 (木材)', costVal: 200, bought: false, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } }
         };
-        // ==================================================
 
         function saveGame() {
             const data = {
@@ -145,14 +143,11 @@
                     upgrades.cashierLumber.bought = upg.cashierLumber.bought || false;
                 }
                 return { savedTreeData };
-            } catch (e) {
-                return false;
-            }
+            } catch (e) { return false; }
         }
 
         let loadResult = loadGame();
         if (!loadResult) { forestCols = 5; forestRows = 5; }
-        
         buildForest(forestCols, forestRows);
         if (loadResult && loadResult.savedTreeData) {
             let savedTreeData = loadResult.savedTreeData;
@@ -163,7 +158,6 @@
                 trees[i].currentStage = savedTreeData[i].currentStage;
             }
         }
-        
         updateUIPositions();
         
         for(let i=0; i<upgrades.auto.count; i++) autoChoppers.push({x: upgrades.auto.box.x + 70, y: upgrades.auto.box.y - 20, speed: 250, wood: 0, state: 'idle'});
@@ -174,43 +168,12 @@
 
         function isInsideUI(x, y, ui) { return x >= ui.x && x <= ui.x + ui.w && y >= ui.y && y <= ui.y + ui.h; }
         function handlePurchaseClick() { if (uiOkBtn.active && uiOkBtn.target && money >= uiOkBtn.target.cost()) { money -= uiOkBtn.target.cost(); uiOkBtn.target.action(); uiOkBtn.target.cd = 1.0; uiOkBtn.active = false; uiOkBtn.target = null; saveGame(); return true; } return false; }
-        
         function recordInteraction() { let now = Date.now(); if (!firstInteractionTime) firstInteractionTime = now; lastInteractionTime = now; }
 
-        window.addEventListener('keydown', (e) => {
-            recordInteraction();
-            if (['ArrowUp', 'w', 'W'].includes(e.key)) keys.up = true;
-            if (['ArrowDown', 's', 'S'].includes(e.key)) keys.down = true;
-            if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.left = true;
-            if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.right = true;
-        });
-
-        window.addEventListener('keyup', (e) => {
-            if (['ArrowUp', 'w', 'W'].includes(e.key)) keys.up = false;
-            if (['ArrowDown', 's', 'S'].includes(e.key)) keys.down = false;
-            if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.left = false;
-            if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.right = false;
-        });
-
-        function handleInputStart(e, clientX, clientY, id) { 
-            recordInteraction();
-            if (isInsideUI(clientX, clientY, clearSaveBtn)) {
-                if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) { localStorage.removeItem('lumberjack_save'); location.reload(); }
-                return;
-            }
-            if (uiOkBtn.active && isInsideUI(clientX, clientY, uiOkBtn)) { if(handlePurchaseClick()) return; } 
-            let dx = clientX - joystick.x, dy = clientY - joystick.y; 
-            if (Math.hypot(dx, dy) < joystick.radius + 40) { joystick.active = true; joystick.touchId = id; updateJoystick(clientX, clientY); } 
-        }
-
-        function updateJoystick(clientX, clientY) { 
-            if (!joystick.active) return; 
-            recordInteraction();
-            let dx = clientX - joystick.x, dy = clientY - joystick.y, dist = Math.hypot(dx, dy); 
-            joystick.angle = Math.atan2(dy, dx); joystick.pull = Math.min(dist, joystick.radius) / joystick.radius; 
-            joystick.knobX = Math.cos(joystick.angle) * joystick.pull * joystick.radius; joystick.knobY = Math.sin(joystick.angle) * joystick.pull * joystick.radius; 
-        }
-
+        window.addEventListener('keydown', (e) => { recordInteraction(); if (['ArrowUp', 'w', 'W'].includes(e.key)) keys.up = true; if (['ArrowDown', 's', 'S'].includes(e.key)) keys.down = true; if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.left = true; if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.right = true; });
+        window.addEventListener('keyup', (e) => { if (['ArrowUp', 'w', 'W'].includes(e.key)) keys.up = false; if (['ArrowDown', 's', 'S'].includes(e.key)) keys.down = false; if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.left = false; if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.right = false; });
+        function handleInputStart(e, clientX, clientY, id) { recordInteraction(); if (isInsideUI(clientX, clientY, clearSaveBtn)) { if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) { localStorage.removeItem('lumberjack_save'); location.reload(); } return; } if (uiOkBtn.active && isInsideUI(clientX, clientY, uiOkBtn)) { if(handlePurchaseClick()) return; } let dx = clientX - joystick.x, dy = clientY - joystick.y; if (Math.hypot(dx, dy) < joystick.radius + 40) { joystick.active = true; joystick.touchId = id; updateJoystick(clientX, clientY); } }
+        function updateJoystick(clientX, clientY) { if (!joystick.active) return; recordInteraction(); let dx = clientX - joystick.x, dy = clientY - joystick.y, dist = Math.hypot(dx, dy); joystick.angle = Math.atan2(dy, dx); joystick.pull = Math.min(dist, joystick.radius) / joystick.radius; joystick.knobX = Math.cos(joystick.angle) * joystick.pull * joystick.radius; joystick.knobY = Math.sin(joystick.angle) * joystick.pull * joystick.radius; }
         function handleInputEnd(id) { if (joystick.touchId === id || id === 'mouse') { joystick.active = false; joystick.touchId = null; joystick.knobX = 0; joystick.knobY = 0; } }
 
         window.addEventListener('touchstart', (e) => { e.preventDefault(); for(let t of e.changedTouches) handleInputStart(e, t.clientX, t.clientY, t.identifier); }, {passive: false});
@@ -221,24 +184,11 @@
         window.addEventListener('mousemove', (e) => { if(e.buttons === 1) updateJoystick(e.clientX, e.clientY); });
         window.addEventListener('mouseup', () => handleInputEnd('mouse'));
         
-        function processTransaction(counter, customersArr, isLumber) { 
-            if(customersArr.length === 0) return; 
-            let current = customersArr[0], stock = isLumber ? counter.lumber : counter.wood; 
-            let sellAmount = Math.min(stock, current.need); 
-            if (isLumber) counter.lumber -= sellAmount; else counter.wood -= sellAmount; 
-            current.need -= sellAmount; 
-            
-            // 【物價調整】：原木每根 5 塊，木材每塊 15 塊
-            counter.money += sellAmount * (isLumber ? 15 : 5); 
-            
-            if (current.need <= 0) customersArr.shift(); 
-        }
+        function processTransaction(counter, customersArr, isLumber) { if(customersArr.length === 0) return; let current = customersArr[0], stock = isLumber ? counter.lumber : counter.wood; let sellAmount = Math.min(stock, current.need); if (isLumber) counter.lumber -= sellAmount; else counter.wood -= sellAmount; current.need -= sellAmount; counter.money += sellAmount * (isLumber ? 15 : 5); if (current.need <= 0) customersArr.shift(); }
 
         function update(dt) {
-            if (joystick.active) {
-                player.vx = Math.cos(joystick.angle) * player.speed * joystick.pull; 
-                player.vy = Math.sin(joystick.angle) * player.speed * joystick.pull; 
-            } else {
+            if (joystick.active) { player.vx = Math.cos(joystick.angle) * player.speed * joystick.pull; player.vy = Math.sin(joystick.angle) * player.speed * joystick.pull; } 
+            else {
                 let kx = 0, ky = 0;
                 if (keys.left) kx -= 1; if (keys.right) kx += 1; if (keys.up) ky -= 1; if (keys.down) ky += 1;
                 if (kx !== 0 || ky !== 0) { let kDist = Math.hypot(kx, ky); player.vx = (kx / kDist) * player.speed; player.vy = (ky / kDist) * player.speed; } 
@@ -252,9 +202,7 @@
             camera.x = Math.max(0, Math.min(camera.x, WORLD_WIDTH - canvas.width));
             camera.y = Math.max(0, Math.min(camera.y, WORLD_HEIGHT - canvas.height));
 
-            let closestTree = null;
-            let minDistance = Infinity;
-
+            let closestTree = null; let minDistance = Infinity;
             trees.forEach(tree => {
                 if (!tree.isCut && (tree.currentStage === 6 || tree === choppingTree)) { 
                     let dist = Math.hypot(player.x - (tree.x + treeSize/2), player.y - (tree.y + treeSize/2));
@@ -274,10 +222,7 @@
                 let animStage = Math.max(1, Math.min(6, Math.ceil(progressRatio * 6)));
                 choppingTree.currentStage = animStage;
                 if (player.chopTimer <= 0) { choppingTree.isCut = true; choppingTree.currentStage = 0; choppingTree.respawnTimer = 60.0; player.wood += 3; choppingTree = null; }
-            } else { 
-                if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6;
-                choppingTree = null; 
-            }
+            } else { if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6; choppingTree = null; }
 
             autoChoppers.forEach(bot => {
                 if (bot.state === 'idle') {
@@ -307,9 +252,89 @@
             });
 
             const moveBot = (t, destX, destY, onReach) => { let dist = Math.hypot(destX - t.x, destY - t.y); if (dist < 5) onReach(); else { t.x += (destX - t.x)/dist * t.speed * dt; t.y += (destY - t.y)/dist * t.speed * dt; } };
-            transA.forEach(t => { if (t.state === 'idle') { if (autoWoodZone.wood > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, autoWoodZone.x + autoWoodZone.w/2, autoWoodZone.y + autoWoodZone.h/2, () => { let take = Math.min(autoWoodZone.wood, 5 - t.wood); autoWoodZone.wood -= take; t.wood += take; t.state = t.wood > 0 ? 'to_counter' : 'idle'; }); else if (t.state === 'to_counter') moveBot(t, counterLog.x + (counterLog.width/3)*2.5, counterLog.y + counterLog.height/2, () => { counterLog.wood += t.wood; t.wood = 0; t.state = 'idle'; }); });
-            transB.forEach(t => { if (t.state === 'idle') { if (autoWoodZone.wood > 0 && machines.length > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, autoWoodZone.x + autoWoodZone.w/2, autoWoodZone.y + autoWoodZone.h/2, () => { let take = Math.min(autoWoodZone.wood, 5 - t.wood); autoWoodZone.wood -= take; t.wood += take; t.state = t.wood > 0 ? 'to_machine' : 'idle'; }); else if (t.state === 'to_machine') { let m = machines.find(m => m.inputWood < 10); if (!m) { t.state = 'idle'; return; } moveBot(t, m.x + m.w + 30, m.y + m.h/2, () => { let drop = Math.min(t.wood, 10 - m.inputWood); m.inputWood += drop; t.wood -= drop; if (t.wood <= 0) t.state = 'idle'; }); } });
-            transC.forEach(t => { if (t.state === 'idle') { let m = machines.find(m => m.outputLumber > 0); if (m) { t.targetM = m; t.state = 'to_machine'; } } else if (t.state === 'to_machine') moveBot(t, t.targetM.x - 30, t.targetM.y + t.targetM.h/2, () => { let take = Math.min(t.targetM.outputLumber, 5 - t.lumber); t.targetM.outputLumber -= take; t.lumber += take; t.state = t.lumber > 0 ? 'to_counter' : 'idle'; }); else if (t.state === 'to_counter') moveBot(t, counterLumber.x + (counterLumber.width/3)*2.5, counterLumber.y + counterLumber.height/2, () => { counterLumber.lumber += t.lumber; t.lumber = 0; t.state = 'idle'; }); });
+            
+            transA.forEach(t => { 
+                if (t.state === 'idle') { if (autoWoodZone.wood > 0) t.state = 'to_zone'; } 
+                else if (t.state === 'to_zone') moveBot(t, autoWoodZone.x + autoWoodZone.w/2, autoWoodZone.y + autoWoodZone.h/2, () => { let take = Math.min(autoWoodZone.wood, 5 - t.wood); autoWoodZone.wood -= take; t.wood += take; t.state = t.wood > 0 ? 'to_counter' : 'idle'; }); 
+                else if (t.state === 'to_counter') moveBot(t, counterLog.x + (counterLog.width/3)*2.5, counterLog.y + counterLog.height/2, () => { counterLog.wood += t.wood; t.wood = 0; t.state = 'idle'; }); 
+            });
+
+            // 【智慧物流】：運送員 B 優先送往原木最少的機器
+            transB.forEach(t => { 
+                if (t.state === 'idle') { 
+                    if (t.wood > 0) {
+                        if (machines.some(m => m.inputWood < 10)) t.state = 'to_machine';
+                    } else {
+                        if (autoWoodZone.wood > 0 && machines.some(m => m.inputWood < 10)) t.state = 'to_zone'; 
+                    }
+                } else if (t.state === 'to_zone') {
+                    moveBot(t, autoWoodZone.x + autoWoodZone.w/2, autoWoodZone.y + autoWoodZone.h/2, () => { 
+                        let take = Math.min(autoWoodZone.wood, 5 - t.wood); 
+                        autoWoodZone.wood -= take; t.wood += take; 
+                        if (t.wood > 0) {
+                            let bestM = null, minVal = Infinity;
+                            machines.forEach(m => { if(m.inputWood < 10 && m.inputWood < minVal) { minVal = m.inputWood; bestM = m; }});
+                            t.targetM = bestM;
+                            t.state = bestM ? 'to_machine' : 'idle';
+                        } else t.state = 'idle';
+                    }); 
+                } else if (t.state === 'to_machine') { 
+                    if (!t.targetM || t.targetM.inputWood >= 10) {
+                        let bestM = null, minVal = Infinity;
+                        machines.forEach(m => { if(m.inputWood < 10 && m.inputWood < minVal) { minVal = m.inputWood; bestM = m; }});
+                        t.targetM = bestM;
+                    }
+                    if (!t.targetM) { t.state = 'idle'; return; }
+                    
+                    moveBot(t, t.targetM.x + t.targetM.w + 30, t.targetM.y + t.targetM.h/2, () => { 
+                        let drop = Math.min(t.wood, 10 - t.targetM.inputWood); 
+                        t.targetM.inputWood += drop; t.wood -= drop; 
+                        t.targetM = null;
+                        if (t.wood <= 0) t.state = 'idle'; 
+                    }); 
+                } 
+            });
+
+            // 【智慧物流】：運送員 C 優先收取木材最多的機器
+            transC.forEach(t => { 
+                if (t.state === 'idle') { 
+                    if (t.lumber > 0) {
+                        t.state = 'to_counter';
+                    } else {
+                        let bestM = null, maxVal = 0;
+                        machines.forEach(m => { if(m.outputLumber > 0 && m.outputLumber > maxVal) { maxVal = m.outputLumber; bestM = m; }});
+                        if (bestM) { t.targetM = bestM; t.state = 'to_machine'; } 
+                    }
+                } else if (t.state === 'to_machine') { 
+                    if (!t.targetM || t.targetM.outputLumber <= 0) {
+                        let bestM = null, maxVal = 0;
+                        machines.forEach(m => { if(m.outputLumber > 0 && m.outputLumber > maxVal) { maxVal = m.outputLumber; bestM = m; }});
+                        t.targetM = bestM;
+                    }
+                    if (!t.targetM) { 
+                        t.state = t.lumber > 0 ? 'to_counter' : 'idle'; 
+                        return; 
+                    }
+                    moveBot(t, t.targetM.x - 30, t.targetM.y + t.targetM.h/2, () => { 
+                        let take = Math.min(t.targetM.outputLumber, 5 - t.lumber); 
+                        t.targetM.outputLumber -= take; t.lumber += take; 
+                        t.targetM = null;
+                        
+                        // 拿滿 5 個，或沒有其他機台可以收，就去結帳台
+                        if (t.lumber >= 5) t.state = 'to_counter';
+                        else {
+                            let nextM = null, maxVal = 0;
+                            machines.forEach(m => { if(m.outputLumber > 0 && m.outputLumber > maxVal) { maxVal = m.outputLumber; nextM = m; }});
+                            if (nextM) t.targetM = nextM;
+                            else t.state = 'to_counter';
+                        }
+                    }); 
+                } else if (t.state === 'to_counter') {
+                    moveBot(t, counterLumber.x + (counterLumber.width/3)*2.5, counterLumber.y + counterLumber.height/2, () => { 
+                        counterLumber.lumber += t.lumber; t.lumber = 0; t.state = 'idle'; 
+                    }); 
+                } 
+            });
 
             const inZone = (px, py, box) => Math.abs(px - (box.x + box.w/2)) < box.w/2 && Math.abs(py - (box.y + box.h/2)) < box.h/2;
             const distTo = (px, py, tx, ty) => Math.hypot(px - tx, py - ty);
