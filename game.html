@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨 - 護眼修復版</title>
+    <title>伐木大亨 - 鍵盤存檔版</title>
     <style>
         body { 
             margin: 0; 
@@ -21,20 +21,34 @@
 <body>
     <canvas id="gameCanvas"></canvas>
     <script>
-        console.log('202503091735');
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const WORLD_WIDTH = 2600; const WORLD_HEIGHT = 1600;
         let camera = { x: 0, y: 0 };
+        
+        // 介面與控制設定
         const joystick = { x: 0, y: 0, radius: 60, knobX: 0, knobY: 0, active: false, angle: 0, pull: 0, touchId: null };
         const uiOkBtn = { x: 0, y: 0, w: 200, h: 60, active: false, target: null };
+        const clearSaveBtn = { x: 0, y: 20, w: 100, h: 40 }; // 清除存檔按鈕
         
+        // 鍵盤狀態追蹤
+        const keys = { up: false, down: false, left: false, right: false };
+
         let firstInteractionTime = null;
         let lastInteractionTime = null;
         let saveTimer = 3.0; 
 
-        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; joystick.x = canvas.width - 100; joystick.y = canvas.height - 100; uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; uiOkBtn.y = canvas.height - 120; }
+        function resize() { 
+            canvas.width = window.innerWidth; 
+            canvas.height = window.innerHeight; 
+            joystick.x = canvas.width - 100; 
+            joystick.y = canvas.height - 100; 
+            uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; 
+            uiOkBtn.y = canvas.height - 120; 
+            clearSaveBtn.x = canvas.width - 120; // 固定在右上角
+        }
         window.addEventListener('resize', resize); resize();
+
         let money = 0; let lastTime = performance.now();
         const counterLog = { x: 200, y: 1100, width: 240, height: 80, wood: 0, money: 0 };
         const counterLumber = { x: 200, y: 500, width: 240, height: 80, lumber: 0, money: 0 };
@@ -97,6 +111,7 @@
                 counterLumber: { lumber: counterLumber.lumber, money: counterLumber.money },
                 autoWoodZone: { wood: autoWoodZone.wood },
                 forestCols: forestCols, forestRows: forestRows,
+                trees: trees.map(t => ({ isCut: t.isCut, respawnTimer: t.respawnTimer, currentStage: t.currentStage })),
                 upgrades: {
                     speed: { level: upgrades.speed.level, costVal: upgrades.speed.costVal },
                     auto: { count: upgrades.auto.count, costVal: upgrades.auto.costVal },
@@ -127,6 +142,7 @@
                 forestCols = data.forestCols || 5; forestRows = data.forestRows || 5;
                 firstInteractionTime = data.firstInteractionTime || null;
                 lastInteractionTime = data.lastInteractionTime || null;
+                let savedTreeData = data.trees || null; 
                 
                 let upg = data.upgrades;
                 if (upg) {
@@ -139,15 +155,28 @@
                     upgrades.machineSpeed.level = upg.machineSpeed.level || 1; upgrades.machineSpeed.maxTime = upg.machineSpeed.maxTime || 6.0; upgrades.machineSpeed.costVal = upg.machineSpeed.costVal || 200;
                     upgrades.cashierLumber.bought = upg.cashierLumber.bought || false;
                 }
-                return true;
+                return { savedTreeData };
             } catch (e) {
                 console.error("讀檔失敗", e);
                 return false;
             }
         }
 
-        if (!loadGame()) { forestCols = 5; forestRows = 5; }
+        let loadResult = loadGame();
+        if (!loadResult) { forestCols = 5; forestRows = 5; }
+        
         buildForest(forestCols, forestRows);
+        
+        if (loadResult && loadResult.savedTreeData) {
+            let savedTreeData = loadResult.savedTreeData;
+            let limit = Math.min(trees.length, savedTreeData.length);
+            for (let i = 0; i < limit; i++) {
+                trees[i].isCut = savedTreeData[i].isCut;
+                trees[i].respawnTimer = savedTreeData[i].respawnTimer;
+                trees[i].currentStage = savedTreeData[i].currentStage;
+            }
+        }
+        
         updateUIPositions();
         
         for(let i=0; i<upgrades.auto.count; i++) autoChoppers.push({x: upgrades.auto.box.x + 70, y: upgrades.auto.box.y - 20, speed: 180, wood: 0, state: 'idle'});
@@ -165,23 +194,52 @@
             lastInteractionTime = now;
         }
 
+        // 鍵盤監聽事件
+        window.addEventListener('keydown', (e) => {
+            recordInteraction();
+            if (['ArrowUp', 'w', 'W'].includes(e.key)) keys.up = true;
+            if (['ArrowDown', 's', 'S'].includes(e.key)) keys.down = true;
+            if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.left = true;
+            if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.right = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (['ArrowUp', 'w', 'W'].includes(e.key)) keys.up = false;
+            if (['ArrowDown', 's', 'S'].includes(e.key)) keys.down = false;
+            if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.left = false;
+            if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.right = false;
+        });
+
         function handleInputStart(e, clientX, clientY, id) { 
             recordInteraction();
+            
+            // 檢查是否點擊「清除存檔」
+            if (isInsideUI(clientX, clientY, clearSaveBtn)) {
+                if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) {
+                    localStorage.removeItem('lumberjack_save');
+                    location.reload();
+                }
+                return;
+            }
+
             if (uiOkBtn.active && isInsideUI(clientX, clientY, uiOkBtn)) { if(handlePurchaseClick()) return; } 
+            
             let dx = clientX - joystick.x, dy = clientY - joystick.y; 
             if (Math.hypot(dx, dy) < joystick.radius + 40) { joystick.active = true; joystick.touchId = id; updateJoystick(clientX, clientY); } 
         }
+
         function updateJoystick(clientX, clientY) { 
             if (!joystick.active) return; 
             recordInteraction();
             let dx = clientX - joystick.x, dy = clientY - joystick.y, dist = Math.hypot(dx, dy); 
             joystick.angle = Math.atan2(dy, dx); joystick.pull = Math.min(dist, joystick.radius) / joystick.radius; 
             joystick.knobX = Math.cos(joystick.angle) * joystick.pull * joystick.radius; joystick.knobY = Math.sin(joystick.angle) * joystick.pull * joystick.radius; 
-            player.vx = Math.cos(joystick.angle) * player.speed * joystick.pull; player.vy = Math.sin(joystick.angle) * player.speed * joystick.pull; 
         }
+
         function handleInputEnd(id) { 
-            if (joystick.touchId === id || id === 'mouse') { joystick.active = false; joystick.touchId = null; joystick.knobX = 0; joystick.knobY = 0; player.vx = 0; player.vy = 0; } 
+            if (joystick.touchId === id || id === 'mouse') { joystick.active = false; joystick.touchId = null; joystick.knobX = 0; joystick.knobY = 0; } 
         }
+
         window.addEventListener('touchstart', (e) => { e.preventDefault(); for(let t of e.changedTouches) handleInputStart(e, t.clientX, t.clientY, t.identifier); }, {passive: false});
         window.addEventListener('touchmove', (e) => { e.preventDefault(); for(let t of e.changedTouches) if(t.identifier === joystick.touchId) updateJoystick(t.clientX, t.clientY); }, {passive: false});
         window.addEventListener('touchend', (e) => { for(let t of e.changedTouches) handleInputEnd(t.identifier); });
@@ -193,6 +251,27 @@
         function processTransaction(counter, customersArr, isLumber) { if(customersArr.length === 0) return; let current = customersArr[0], stock = isLumber ? counter.lumber : counter.wood; let sellAmount = Math.min(stock, current.need); if (isLumber) counter.lumber -= sellAmount; else counter.wood -= sellAmount; current.need -= sellAmount; counter.money += sellAmount * (isLumber ? 4 : 2); if (current.need <= 0) customersArr.shift(); }
 
         function update(dt) {
+            // 統合搖桿與鍵盤輸入
+            if (joystick.active) {
+                player.vx = Math.cos(joystick.angle) * player.speed * joystick.pull; 
+                player.vy = Math.sin(joystick.angle) * player.speed * joystick.pull; 
+            } else {
+                let kx = 0, ky = 0;
+                if (keys.left) kx -= 1;
+                if (keys.right) kx += 1;
+                if (keys.up) ky -= 1;
+                if (keys.down) ky += 1;
+                
+                if (kx !== 0 || ky !== 0) {
+                    let kDist = Math.hypot(kx, ky);
+                    player.vx = (kx / kDist) * player.speed;
+                    player.vy = (ky / kDist) * player.speed;
+                } else {
+                    player.vx = 0;
+                    player.vy = 0;
+                }
+            }
+
             player.x += player.vx * dt; player.y += player.vy * dt;
             player.x = Math.max(player.radius, Math.min(player.x, WORLD_WIDTH - player.radius));
             player.y = Math.max(player.radius, Math.min(player.y, WORLD_HEIGHT - player.radius));
@@ -213,7 +292,6 @@
                 } else if (tree.isCut) {
                     tree.respawnTimer -= dt;
                     let elapsed = 30.0 - tree.respawnTimer;
-                    // 【修復核心】：使用 Math.max 確保數值即使在負 dt 干擾下也不會小於 0 
                     tree.currentStage = Math.max(0, Math.min(6, Math.floor(elapsed / 5.0))); 
                     if (tree.respawnTimer <= 0) { tree.isCut = false; tree.isTargeted = false; tree.currentStage = 6; }
                 }
@@ -227,7 +305,6 @@
                 }
                 player.chopTimer -= dt;
                 let progressRatio = player.chopTimer / player.maxChopTime; 
-                // 【修復核心】：嚴格限制動畫階段界線在 1~6 之間
                 let animStage = Math.max(1, Math.min(6, Math.ceil(progressRatio * 6)));
                 choppingTree.currentStage = animStage;
 
@@ -297,7 +374,7 @@
         }
 
         function formatTime(ts) {
-            if (!ts) return '無';
+            if (!ts) return '無紀錄';
             let d = new Date(ts);
             return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
         }
@@ -311,7 +388,6 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save(); ctx.translate(-camera.x, -camera.y);
             
-            // 護眼模式：淡化網格線顏色
             ctx.strokeStyle = 'rgba(107, 142, 35, 0.3)'; 
             ctx.lineWidth = 1; 
             for(let i=0; i<WORLD_WIDTH; i+=100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_HEIGHT); ctx.stroke(); } 
@@ -323,7 +399,6 @@
             Object.values(upgrades).forEach(up => drawButton(up));
 
             trees.forEach(tree => {
-                // 【修復核心】：加入極限防呆機制，確保即使出現異常數值，也能安全調用 stageData
                 let safeStage = Math.max(0, Math.min(6, tree.currentStage || 0));
                 let stageData = TREE_STAGES[safeStage];
                 if (!stageData) return; 
@@ -353,13 +428,18 @@
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; ctx.beginPath(); ctx.arc(joystick.x, joystick.y, joystick.radius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.beginPath(); ctx.arc(joystick.x + joystick.knobX, joystick.y + joystick.knobY, 25, 0, Math.PI * 2); ctx.fill();
             if (uiOkBtn.active && uiOkBtn.target) { ctx.fillStyle = '#32CD32'; ctx.fillRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); ctx.strokeStyle = '#006400'; ctx.lineWidth = 4; ctx.strokeRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); ctx.fillStyle = '#FFF'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(`確認購買 ($${uiOkBtn.target.cost()})`, uiOkBtn.x + uiOkBtn.w / 2, uiOkBtn.y + 35); ctx.textAlign = 'left'; }
             
-            ctx.fillStyle = '#333'; ctx.font = '14px Arial';
-            ctx.fillText(`首次互動: ${formatTime(firstInteractionTime)}`, 10, canvas.height - 30);
+            // 繪製清除存檔按鈕 (右上角)
+            ctx.fillStyle = '#CD5C5C'; ctx.fillRect(clearSaveBtn.x, clearSaveBtn.y, clearSaveBtn.w, clearSaveBtn.h);
+            ctx.fillStyle = '#FFF'; ctx.font = '16px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('清除存檔', clearSaveBtn.x + clearSaveBtn.w / 2, clearSaveBtn.y + 25);
+            ctx.textAlign = 'left';
+
+            ctx.fillStyle = '#333'; ctx.font = '16px Arial';
+            ctx.fillText(`首次互動: ${formatTime(firstInteractionTime)}`, 10, canvas.height - 35);
             ctx.fillText(`最後互動: ${formatTime(lastInteractionTime)}`, 10, canvas.height - 10);
         }
 
         function loop(timestamp) { 
-            // 【修復核心】：嚴格避免 dt 變成負數引發的計算崩潰
             let rawDt = (timestamp - lastTime) / 1000;
             let dt = Math.max(0, Math.min(0.1, rawDt)); 
             lastTime = timestamp; 
