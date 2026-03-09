@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨 - 護眼存檔版</title>
+    <title>伐木大亨 - 護眼修復版</title>
     <style>
         body { 
             margin: 0; 
             padding: 0; 
             overflow: hidden; 
-            background-color: #C7EDCC; /* 護眼豆沙綠 */
+            background-color: #C7EDCC; 
             touch-action: none; 
             font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; 
             user-select: none; 
@@ -21,6 +21,7 @@
 <body>
     <canvas id="gameCanvas"></canvas>
     <script>
+        console.log('202503091735');
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const WORLD_WIDTH = 2600; const WORLD_HEIGHT = 1600;
@@ -28,10 +29,9 @@
         const joystick = { x: 0, y: 0, radius: 60, knobX: 0, knobY: 0, active: false, angle: 0, pull: 0, touchId: null };
         const uiOkBtn = { x: 0, y: 0, w: 200, h: 60, active: false, target: null };
         
-        // 存檔與時間紀錄變數
         let firstInteractionTime = null;
         let lastInteractionTime = null;
-        let saveTimer = 3.0; // 每 3 秒自動存檔一次
+        let saveTimer = 3.0; 
 
         function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; joystick.x = canvas.width - 100; joystick.y = canvas.height - 100; uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; uiOkBtn.y = canvas.height - 120; }
         window.addEventListener('resize', resize); resize();
@@ -59,7 +59,6 @@
             { radius: 35, trunkH: 40, color: '#004d00', label: '樹(可砍)' }   
         ];
 
-        // 必須在調用前宣告的構建函式
         function buildForest(cols, rows, oldCols = 0, oldRows = 0) {
             for (let i = 0; i < cols; i++) {
                 for (let j = 0; j < rows; j++) {
@@ -90,7 +89,6 @@
             cashierLumber: { box: {x: counterLumber.x + 300, y: counterLumber.y + 15, w: 140, h: 50}, title: '自動收銀 (木材)', costVal: 200, bought: false, cd: 0, hidden: function() { return upgrades.machineBuy.count === 0; }, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } }
         };
 
-        // --- 存檔與讀檔系統 ---
         function saveGame() {
             const data = {
                 money: money,
@@ -148,13 +146,10 @@
             }
         }
 
-        // 啟動時讀檔並重建實體
-        if (!loadGame()) {
-            forestCols = 5; forestRows = 5;
-        }
+        if (!loadGame()) { forestCols = 5; forestRows = 5; }
         buildForest(forestCols, forestRows);
         updateUIPositions();
-        // 重建小幫手與設施
+        
         for(let i=0; i<upgrades.auto.count; i++) autoChoppers.push({x: upgrades.auto.box.x + 70, y: upgrades.auto.box.y - 20, speed: 180, wood: 0, state: 'idle'});
         for(let i=0; i<upgrades.transA.count; i++) transA.push({x: autoWoodZone.x + 60, y: autoWoodZone.y + 40, speed: 200, wood: 0, state: 'idle'});
         for(let i=0; i<upgrades.transB.count; i++) transB.push({x: autoWoodZone.x + 60, y: autoWoodZone.y + 40, speed: 200, wood: 0, state: 'idle'});
@@ -194,6 +189,7 @@
         window.addEventListener('mousedown', (e) => handleInputStart(e, e.clientX, e.clientY, 'mouse'));
         window.addEventListener('mousemove', (e) => { if(e.buttons === 1) updateJoystick(e.clientX, e.clientY); });
         window.addEventListener('mouseup', () => handleInputEnd('mouse'));
+        
         function processTransaction(counter, customersArr, isLumber) { if(customersArr.length === 0) return; let current = customersArr[0], stock = isLumber ? counter.lumber : counter.wood; let sellAmount = Math.min(stock, current.need); if (isLumber) counter.lumber -= sellAmount; else counter.wood -= sellAmount; current.need -= sellAmount; counter.money += sellAmount * (isLumber ? 4 : 2); if (current.need <= 0) customersArr.shift(); }
 
         function update(dt) {
@@ -217,7 +213,8 @@
                 } else if (tree.isCut) {
                     tree.respawnTimer -= dt;
                     let elapsed = 30.0 - tree.respawnTimer;
-                    tree.currentStage = Math.min(6, Math.floor(elapsed / 5.0)); 
+                    // 【修復核心】：使用 Math.max 確保數值即使在負 dt 干擾下也不會小於 0 
+                    tree.currentStage = Math.max(0, Math.min(6, Math.floor(elapsed / 5.0))); 
                     if (tree.respawnTimer <= 0) { tree.isCut = false; tree.isTargeted = false; tree.currentStage = 6; }
                 }
             });
@@ -230,7 +227,8 @@
                 }
                 player.chopTimer -= dt;
                 let progressRatio = player.chopTimer / player.maxChopTime; 
-                let animStage = Math.max(1, Math.ceil(progressRatio * 6));
+                // 【修復核心】：嚴格限制動畫階段界線在 1~6 之間
+                let animStage = Math.max(1, Math.min(6, Math.ceil(progressRatio * 6)));
                 choppingTree.currentStage = animStage;
 
                 if (player.chopTimer <= 0) {
@@ -255,7 +253,7 @@
                 } else if (bot.state === 'chopping') {
                     bot.chopTimer -= dt;
                     let progressRatio = bot.chopTimer / player.maxChopTime;
-                    bot.targetTree.currentStage = Math.max(1, Math.ceil(progressRatio * 6));
+                    bot.targetTree.currentStage = Math.max(1, Math.min(6, Math.ceil(progressRatio * 6)));
                     if (bot.chopTimer <= 0) { bot.targetTree.isCut = true; bot.targetTree.currentStage = 0; bot.targetTree.isTargeted = false; bot.targetTree.respawnTimer = 30.0; bot.wood += 3; bot.targetTree = null; bot.state = 'to_zone'; }
                 } else if (bot.state === 'to_zone') {
                     let zCX = autoWoodZone.x + autoWoodZone.w / 2, zCY = autoWoodZone.y + autoWoodZone.h / 2, dist = Math.hypot(zCX - bot.x, zCY - bot.y);
@@ -306,14 +304,15 @@
 
         function drawCounter(counter, title, itemLabel, isLumber, cashierObj) { const zW = counter.width / 3; ctx.fillStyle = '#FFD700'; ctx.fillRect(counter.x, counter.y, zW, counter.height); ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText('領錢區', counter.x + 15, counter.y + 30); ctx.fillText(`$${counter.money}`, counter.x + 15, counter.y + 60); ctx.fillStyle = '#8B4513'; ctx.fillRect(counter.x + zW, counter.y, zW, counter.height); ctx.fillStyle = '#FFF'; ctx.fillText('結帳區', counter.x + zW + 15, counter.y + 30); ctx.font = '12px Arial'; ctx.fillText(title, counter.x + zW + 10, counter.y + 60); if (cashierObj.bought) { ctx.fillStyle = '#FFD700'; ctx.beginPath(); ctx.arc(counter.x + zW * 1.5, counter.y + 20, 10, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#FFF'; ctx.fillText('收銀員', counter.x + zW + 22, counter.y + 70); } ctx.fillStyle = '#DEB887'; ctx.fillRect(counter.x + zW * 2, counter.y, zW, counter.height); ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText('放置區', counter.x + zW * 2 + 15, counter.y + 30); let val = isLumber ? counter.lumber : counter.wood; ctx.fillText(`${itemLabel}:${val}`, counter.x + zW * 2 + 15, counter.y + 60); }
         function drawCustomers(counter, customersArr) { customersArr.forEach((c, i) => { if (i > 4) return; let cx = counter.x + (counter.width/3) * 1.5 + (i * 45), cy = counter.y + counter.height + 30; ctx.fillStyle = '#FF6347'; ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(`需:${c.need}`, cx - 15, cy + 5); }); if (customersArr.length > 5) { ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(`+${customersArr.length - 5} 人排隊`, counter.x + (counter.width/3) * 1.5 + 225, counter.y + counter.height + 35); } }
-        function drawButton(upObj) { if (upObj.hidden && upObj.hidden()) return; let enabled = upObj.req(); ctx.fillStyle = enabled ? '#ADD8E6' : '#D3D3D3'; ctx.fillRect(upObj.box.x, upObj.box.y, upObj.box.w, upObj.box.h); ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(upObj.title, upObj.box.x + 10, upObj.box.y + 20); ctx.fillText(upObj.desc(), upObj.box.x + 10, upObj.box.y + 40); }
+        function drawButton(upObj) { if (upObj.hidden && upObj.hidden()) return; let enabled = upObj.req(); ctx.fillStyle = enabled ? '#ADD8E6' : '#A9A9A9'; ctx.fillRect(upObj.box.x, upObj.box.y, upObj.box.w, upObj.box.h); ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(upObj.title, upObj.box.x + 10, upObj.box.y + 20); ctx.fillText(upObj.desc(), upObj.box.x + 10, upObj.box.y + 40); }
         function drawItemDots(x, y, count, isLumber) { ctx.fillStyle = isLumber ? '#FFA500' : '#5C3A21'; let dots = Math.min(count, 5); for (let i = 0; i < dots; i++) { let angle = i * (Math.PI * 2 / Math.max(dots, 1)); ctx.beginPath(); ctx.arc(x + Math.cos(angle)*8, y + Math.sin(angle)*8, 3, 0, Math.PI * 2); ctx.fill(); } }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save(); ctx.translate(-camera.x, -camera.y);
             
-            ctx.strokeStyle = 'rgba(107, 142, 35, 0.4)'; // 調淡網格線
+            // 護眼模式：淡化網格線顏色
+            ctx.strokeStyle = 'rgba(107, 142, 35, 0.3)'; 
             ctx.lineWidth = 1; 
             for(let i=0; i<WORLD_WIDTH; i+=100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_HEIGHT); ctx.stroke(); } 
             for(let i=0; i<WORLD_HEIGHT; i+=100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(WORLD_WIDTH, i); ctx.stroke(); }
@@ -324,9 +323,13 @@
             Object.values(upgrades).forEach(up => drawButton(up));
 
             trees.forEach(tree => {
-                let stageData = TREE_STAGES[tree.currentStage];
+                // 【修復核心】：加入極限防呆機制，確保即使出現異常數值，也能安全調用 stageData
+                let safeStage = Math.max(0, Math.min(6, tree.currentStage || 0));
+                let stageData = TREE_STAGES[safeStage];
+                if (!stageData) return; 
+
                 let cx = tree.x + treeSize / 2; let cy = tree.y + treeSize / 2;
-                if (tree.currentStage === 0) {
+                if (safeStage === 0) {
                     ctx.fillStyle = stageData.color; ctx.fillRect(tree.x + 5, tree.y + treeSize - stageData.trunkH, treeSize - 10, stageData.trunkH);
                     if (tree.isCut) { ctx.fillStyle = '#333'; ctx.font = '12px Arial'; ctx.fillText(`${Math.ceil(tree.respawnTimer)}s`, tree.x + 5, tree.y + treeSize - 15); }
                 } else {
@@ -355,7 +358,15 @@
             ctx.fillText(`最後互動: ${formatTime(lastInteractionTime)}`, 10, canvas.height - 10);
         }
 
-        function loop(timestamp) { let dt = (timestamp - lastTime) / 1000; if (dt > 0.1) dt = 0.1; lastTime = timestamp; update(dt); draw(); requestAnimationFrame(loop); }
+        function loop(timestamp) { 
+            // 【修復核心】：嚴格避免 dt 變成負數引發的計算崩潰
+            let rawDt = (timestamp - lastTime) / 1000;
+            let dt = Math.max(0, Math.min(0.1, rawDt)); 
+            lastTime = timestamp; 
+            update(dt); 
+            draw(); 
+            requestAnimationFrame(loop); 
+        }
         requestAnimationFrame(loop);
 
         function pSBC(p, c0) { let r, g, b, P, i, f, Math_round = Math.round, d = c0.length>5?c0:null; if (!d) return null; P = p < 0; i = parseInt; f = d.slice(1); P = p < 0 ? p * -1 : p; P = 1 - P; r = i(f.slice(0, 2), 16); g = i(f.slice(2, 4), 16); b = i(f.slice(4, 6), 16); r = Math_round(r * P); g = Math_round(g * P); b = Math_round(b * P); return "#" + (0x1000000 + (r * 0x10000) + (g * 0x100) + b).toString(16).slice(1); }
