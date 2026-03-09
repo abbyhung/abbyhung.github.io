@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨2</title>
+    <title>伐木大亨</title>
     <style>
         body {
             margin: 0;
@@ -500,4 +500,136 @@
             // 升級運送員
             ctx.fillStyle = upgrades.transporter.count < upgrades.transporter.maxCount ? '#FFDAB9' : '#D3D3D3';
             ctx.fillRect(upgrades.transporter.x, upgrades.transporter.y, upgrades.transporter.w, upgrades.transporter.h);
-            ctx.fillStyle =
+            ctx.fillStyle = '#333';
+            ctx.fillText(upgrades.transporter.count < upgrades.transporter.maxCount ? `購買運送員` : `運送員滿編`, upgrades.transporter.x + 10, upgrades.transporter.y + 20);
+            if (upgrades.transporter.count < upgrades.transporter.maxCount) {
+                let tCost = upgrades.transporter.costs[upgrades.transporter.count];
+                ctx.fillText(`$${tCost} (${upgrades.transporter.count}/3)`, upgrades.transporter.x + 10, upgrades.transporter.y + 40);
+            }
+
+            // 升級收銀員
+            ctx.fillStyle = !upgrades.cashier.bought ? '#98FB98' : '#D3D3D3';
+            ctx.fillRect(upgrades.cashier.x, upgrades.cashier.y, upgrades.cashier.w, upgrades.cashier.h);
+            ctx.fillStyle = '#333';
+            ctx.fillText(!upgrades.cashier.bought ? `自動收銀員` : `已配置收銀員`, upgrades.cashier.x + 10, upgrades.cashier.y + 20);
+            if (!upgrades.cashier.bought) ctx.fillText(`$${upgrades.cashier.cost}`, upgrades.cashier.x + 10, upgrades.cashier.y + 40);
+
+            // === 繪製集中區 ===
+            ctx.fillStyle = '#EEE8AA';
+            ctx.fillRect(autoWoodZone.x, autoWoodZone.y, autoWoodZone.w, autoWoodZone.h);
+            ctx.fillStyle = '#333';
+            ctx.font = '16px Arial';
+            ctx.fillText(`集中區`, autoWoodZone.x + 35, autoWoodZone.y + 35);
+            ctx.fillText(`儲存量: ${autoWoodZone.wood}`, autoWoodZone.x + 20, autoWoodZone.y + 60);
+
+            // === 繪製森林 ===
+            trees.forEach(tree => {
+                if (tree.isCut) {
+                    ctx.fillStyle = '#DEB887';
+                    ctx.fillRect(tree.x + 10, tree.y + 10, tree.size - 20, tree.size - 20);
+                    ctx.fillStyle = '#888';
+                    ctx.font = '12px Arial';
+                    ctx.fillText(`${Math.ceil(tree.respawnTimer)}s`, tree.x + 10, tree.y);
+                } else {
+                    ctx.fillStyle = '#228B22';
+                    ctx.fillRect(tree.x, tree.y, tree.size, tree.size);
+                }
+            });
+
+            // === 繪製自動砍樹幫手 (紫色) ===
+            autoChoppers.forEach(bot => {
+                ctx.fillStyle = '#8A2BE2'; 
+                ctx.beginPath();
+                ctx.arc(bot.x, bot.y, 12, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (bot.state === 'chopping') {
+                    let barWidth = 30;
+                    let barHeight = 4;
+                    let progress = 1 - (bot.chopTimer / 6.0);
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(bot.x - barWidth / 2, bot.y - 20, barWidth, barHeight);
+                    ctx.fillStyle = '#32CD32';
+                    ctx.fillRect(bot.x - barWidth / 2, bot.y - 20, barWidth * progress, barHeight);
+                }
+
+                ctx.fillStyle = '#5C3A21';
+                let displayDots = Math.min(bot.wood, 5); 
+                for (let i = 0; i < displayDots; i++) {
+                    let angle = i * (Math.PI * 2 / Math.max(displayDots, 1));
+                    let dotX = bot.x + Math.cos(angle) * 6;
+                    let dotY = bot.y + Math.sin(angle) * 6;
+                    ctx.beginPath();
+                    ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // === 繪製自動運送員 (橘色) ===
+            transporters.forEach(t => {
+                ctx.fillStyle = '#FF8C00'; 
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, 12, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#5C3A21';
+                let displayDots = Math.min(t.wood, 5); 
+                for (let i = 0; i < displayDots; i++) {
+                    let angle = i * (Math.PI * 2 / Math.max(displayDots, 1));
+                    let dotX = t.x + Math.cos(angle) * 6;
+                    let dotY = t.y + Math.sin(angle) * 6;
+                    ctx.beginPath();
+                    ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            // === 繪製人物 (藍色) ===
+            ctx.fillStyle = '#4169E1';
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#5C3A21';
+            let displayDots = Math.min(player.wood, 10); 
+            for (let i = 0; i < displayDots; i++) {
+                let angle = i * (Math.PI * 2 / Math.max(displayDots, 1));
+                let dotX = player.x + Math.cos(angle) * 8;
+                let dotY = player.y + Math.sin(angle) * 8;
+                ctx.beginPath();
+                ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            if (choppingTree && !choppingTree.isCut) {
+                let barWidth = 40;
+                let barHeight = 6;
+                let progress = 1 - (player.chopTimer / player.maxChopTime);
+                ctx.fillStyle = 'red';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 30, barWidth, barHeight);
+                ctx.fillStyle = '#32CD32';
+                ctx.fillRect(player.x - barWidth / 2, player.y - 30, barWidth * progress, barHeight);
+            }
+            
+            // === 繪製 UI 資訊 ===
+            ctx.fillStyle = '#333';
+            ctx.font = '24px Arial';
+            ctx.fillText(`總資產: $${money}`, 20, 40);
+            ctx.fillText(`身上木頭: ${player.wood} 根`, 20, 80);
+        }
+
+        function loop(timestamp) {
+            let dt = (timestamp - lastTime) / 1000;
+            if (dt > 0.1) dt = 0.1; 
+            lastTime = timestamp;
+
+            update(dt);
+            draw();
+
+            requestAnimationFrame(loop);
+        }
+
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
