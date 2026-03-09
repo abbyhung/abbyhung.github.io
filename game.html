@@ -200,3 +200,255 @@
         window.addEventListener('keydown', (e) => {
             recordInteraction();
             if (['ArrowUp', 'w', 'W'].includes(e.key)) keys.up = true;
+            if (['ArrowDown', 's', 'S'].includes(e.key)) keys.down = true;
+            if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.left = true;
+            if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.right = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (['ArrowUp', 'w', 'W'].includes(e.key)) keys.up = false;
+            if (['ArrowDown', 's', 'S'].includes(e.key)) keys.down = false;
+            if (['ArrowLeft', 'a', 'A'].includes(e.key)) keys.left = false;
+            if (['ArrowRight', 'd', 'D'].includes(e.key)) keys.right = false;
+        });
+
+        function handleInputStart(e, clientX, clientY, id) { 
+            recordInteraction();
+            
+            if (isInsideUI(clientX, clientY, clearSaveBtn)) {
+                if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) {
+                    localStorage.removeItem('lumberjack_save');
+                    location.reload();
+                }
+                return;
+            }
+
+            if (uiOkBtn.active && isInsideUI(clientX, clientY, uiOkBtn)) { if(handlePurchaseClick()) return; } 
+            
+            let dx = clientX - joystick.x, dy = clientY - joystick.y; 
+            if (Math.hypot(dx, dy) < joystick.radius + 40) { joystick.active = true; joystick.touchId = id; updateJoystick(clientX, clientY); } 
+        }
+
+        function updateJoystick(clientX, clientY) { 
+            if (!joystick.active) return; 
+            recordInteraction();
+            let dx = clientX - joystick.x, dy = clientY - joystick.y, dist = Math.hypot(dx, dy); 
+            joystick.angle = Math.atan2(dy, dx); joystick.pull = Math.min(dist, joystick.radius) / joystick.radius; 
+            joystick.knobX = Math.cos(joystick.angle) * joystick.pull * joystick.radius; joystick.knobY = Math.sin(joystick.angle) * joystick.pull * joystick.radius; 
+        }
+
+        function handleInputEnd(id) { 
+            if (joystick.touchId === id || id === 'mouse') { joystick.active = false; joystick.touchId = null; joystick.knobX = 0; joystick.knobY = 0; } 
+        }
+
+        window.addEventListener('touchstart', (e) => { e.preventDefault(); for(let t of e.changedTouches) handleInputStart(e, t.clientX, t.clientY, t.identifier); }, {passive: false});
+        window.addEventListener('touchmove', (e) => { e.preventDefault(); for(let t of e.changedTouches) if(t.identifier === joystick.touchId) updateJoystick(t.clientX, t.clientY); }, {passive: false});
+        window.addEventListener('touchend', (e) => { for(let t of e.changedTouches) handleInputEnd(t.identifier); });
+        window.addEventListener('touchcancel', (e) => { for(let t of e.changedTouches) handleInputEnd(t.identifier); });
+        window.addEventListener('mousedown', (e) => handleInputStart(e, e.clientX, e.clientY, 'mouse'));
+        window.addEventListener('mousemove', (e) => { if(e.buttons === 1) updateJoystick(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => handleInputEnd('mouse'));
+        
+        function processTransaction(counter, customersArr, isLumber) { if(customersArr.length === 0) return; let current = customersArr[0], stock = isLumber ? counter.lumber : counter.wood; let sellAmount = Math.min(stock, current.need); if (isLumber) counter.lumber -= sellAmount; else counter.wood -= sellAmount; current.need -= sellAmount; counter.money += sellAmount * (isLumber ? 4 : 2); if (current.need <= 0) customersArr.shift(); }
+
+        function update(dt) {
+            if (joystick.active) {
+                player.vx = Math.cos(joystick.angle) * player.speed * joystick.pull; 
+                player.vy = Math.sin(joystick.angle) * player.speed * joystick.pull; 
+            } else {
+                let kx = 0, ky = 0;
+                if (keys.left) kx -= 1;
+                if (keys.right) kx += 1;
+                if (keys.up) ky -= 1;
+                if (keys.down) ky += 1;
+                
+                if (kx !== 0 || ky !== 0) {
+                    let kDist = Math.hypot(kx, ky);
+                    player.vx = (kx / kDist) * player.speed;
+                    player.vy = (ky / kDist) * player.speed;
+                } else {
+                    player.vx = 0;
+                    player.vy = 0;
+                }
+            }
+
+            player.x += player.vx * dt; player.y += player.vy * dt;
+            player.x = Math.max(player.radius, Math.min(player.x, WORLD_WIDTH - player.radius));
+            player.y = Math.max(player.radius, Math.min(player.y, WORLD_HEIGHT - player.radius));
+            camera.x = player.x - canvas.width / 2; camera.y = player.y - canvas.height / 2;
+            camera.x = Math.max(0, Math.min(camera.x, WORLD_WIDTH - canvas.width));
+            camera.y = Math.max(0, Math.min(camera.y, WORLD_HEIGHT - canvas.height));
+
+            let closestTree = null;
+            let minDistance = Infinity;
+
+            trees.forEach(tree => {
+                if (!tree.isCut && (tree.currentStage === 6 || tree === choppingTree)) { 
+                    let dist = Math.hypot(player.x - (tree.x + treeSize/2), player.y - (tree.y + treeSize/2));
+                    if (dist < player.radius + treeSize/2 + 10 && dist < minDistance) { 
+                        minDistance = dist; 
+                        closestTree = tree; 
+                    }
+                } else if (tree.isCut) {
+                    tree.respawnTimer -= dt;
+                    // 【平衡調整】：樹木生長時間延長至 60 秒 (每階段 10 秒)
+                    let elapsed = 60.0 - tree.respawnTimer;
+                    tree.currentStage = Math.max(0, Math.min(6, Math.floor(elapsed / 10.0))); 
+                    if (tree.respawnTimer <= 0) { tree.isCut = false; tree.isTargeted = false; tree.currentStage = 6; }
+                }
+            });
+
+            if (closestTree) {
+                if (choppingTree !== closestTree) { 
+                    if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6;
+                    choppingTree = closestTree; 
+                    player.chopTimer = player.maxChopTime; 
+                }
+                player.chopTimer -= dt;
+                let progressRatio = player.chopTimer / player.maxChopTime; 
+                let animStage = Math.max(1, Math.min(6, Math.ceil(progressRatio * 6)));
+                choppingTree.currentStage = animStage;
+
+                if (player.chopTimer <= 0) {
+                    choppingTree.isCut = true; choppingTree.currentStage = 0; 
+                    choppingTree.respawnTimer = 60.0; // 【平衡調整】：重置為 60 秒
+                    player.wood += 3; choppingTree = null;
+                }
+            } else { 
+                if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6;
+                choppingTree = null; 
+            }
+
+            autoChoppers.forEach(bot => {
+                if (bot.state === 'idle') {
+                    let target = null, minDist = Infinity;
+                    trees.forEach(t => { if (!t.isCut && !t.isTargeted && t.currentStage === 6) { let d = Math.hypot(t.x + treeSize/2 - bot.x, t.y + treeSize/2 - bot.y); if (d < minDist) { minDist = d; target = t; } } });
+                    if (target) { bot.targetTree = target; target.isTargeted = true; bot.state = 'to_tree'; }
+                } else if (bot.state === 'to_tree') {
+                    if (bot.targetTree.isCut) { bot.state = 'idle'; return; }
+                    let tCX = bot.targetTree.x + treeSize / 2, tCY = bot.targetTree.y + treeSize / 2, dist = Math.hypot(tCX - bot.x, tCY - bot.y);
+                    if (dist < 10) { bot.state = 'chopping'; bot.chopTimer = player.maxChopTime; }
+                    else { bot.x += (tCX - bot.x) / dist * bot.speed * dt; bot.y += (tCY - bot.y) / dist * bot.speed * dt; }
+                } else if (bot.state === 'chopping') {
+                    bot.chopTimer -= dt;
+                    let progressRatio = bot.chopTimer / player.maxChopTime;
+                    bot.targetTree.currentStage = Math.max(1, Math.min(6, Math.ceil(progressRatio * 6)));
+                    if (bot.chopTimer <= 0) { bot.targetTree.isCut = true; bot.targetTree.currentStage = 0; bot.targetTree.isTargeted = false; bot.targetTree.respawnTimer = 60.0; bot.wood += 3; bot.targetTree = null; bot.state = 'to_zone'; }
+                } else if (bot.state === 'to_zone') {
+                    let zCX = autoWoodZone.x + autoWoodZone.w / 2, zCY = autoWoodZone.y + autoWoodZone.h / 2, dist = Math.hypot(zCX - bot.x, zCY - bot.y);
+                    if (dist < 5) { autoWoodZone.wood += bot.wood; bot.wood = 0; bot.state = 'idle'; }
+                    else { bot.x += (zCX - bot.x) / dist * bot.speed * dt; bot.y += (zCY - bot.y) / dist * bot.speed * dt; }
+                }
+            });
+
+            machines.forEach(m => {
+                if (m.inputWood > 0 && m.outputLumber < 10 && m.timer <= 0) { m.timer = upgrades.machineSpeed.maxTime; m.inputWood--; }
+                if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) m.outputLumber++; }
+            });
+
+            const moveBot = (t, destX, destY, onReach) => { let dist = Math.hypot(destX - t.x, destY - t.y); if (dist < 5) onReach(); else { t.x += (destX - t.x)/dist * t.speed * dt; t.y += (destY - t.y)/dist * t.speed * dt; } };
+            transA.forEach(t => { if (t.state === 'idle') { if (autoWoodZone.wood > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, autoWoodZone.x + autoWoodZone.w/2, autoWoodZone.y + autoWoodZone.h/2, () => { let take = Math.min(autoWoodZone.wood, 5 - t.wood); autoWoodZone.wood -= take; t.wood += take; t.state = t.wood > 0 ? 'to_counter' : 'idle'; }); else if (t.state === 'to_counter') moveBot(t, counterLog.x + (counterLog.width/3)*2.5, counterLog.y + counterLog.height/2, () => { counterLog.wood += t.wood; t.wood = 0; t.state = 'idle'; }); });
+            transB.forEach(t => { if (t.state === 'idle') { if (autoWoodZone.wood > 0 && machines.length > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, autoWoodZone.x + autoWoodZone.w/2, autoWoodZone.y + autoWoodZone.h/2, () => { let take = Math.min(autoWoodZone.wood, 5 - t.wood); autoWoodZone.wood -= take; t.wood += take; t.state = t.wood > 0 ? 'to_machine' : 'idle'; }); else if (t.state === 'to_machine') { let m = machines.find(m => m.inputWood < 10); if (!m) { t.state = 'idle'; return; } moveBot(t, m.x + m.w + 30, m.y + m.h/2, () => { let drop = Math.min(t.wood, 10 - m.inputWood); m.inputWood += drop; t.wood -= drop; if (t.wood <= 0) t.state = 'idle'; }); } });
+            transC.forEach(t => { if (t.state === 'idle') { let m = machines.find(m => m.outputLumber > 0); if (m) { t.targetM = m; t.state = 'to_machine'; } } else if (t.state === 'to_machine') moveBot(t, t.targetM.x - 30, t.targetM.y + t.targetM.h/2, () => { let take = Math.min(t.targetM.outputLumber, 5 - t.lumber); t.targetM.outputLumber -= take; t.lumber += take; t.state = t.lumber > 0 ? 'to_counter' : 'idle'; }); else if (t.state === 'to_counter') moveBot(t, counterLumber.x + (counterLumber.width/3)*2.5, counterLumber.y + counterLumber.height/2, () => { counterLumber.lumber += t.lumber; t.lumber = 0; t.state = 'idle'; }); });
+
+            const inZone = (px, py, box) => Math.abs(px - (box.x + box.w/2)) < box.w/2 && Math.abs(py - (box.y + box.h/2)) < box.h/2;
+            const distTo = (px, py, tx, ty) => Math.hypot(px - tx, py - ty);
+            const interactRad = 80;
+
+            if (distTo(player.x, player.y, autoWoodZone.x + autoWoodZone.w/2, autoWoodZone.y + autoWoodZone.h/2) < interactRad && autoWoodZone.wood > 0) { player.wood += autoWoodZone.wood; autoWoodZone.wood = 0; }
+            machines.forEach(m => { let inCX = m.x + m.w + 20, inCY = m.y + 30; let outCX = m.x - 20, outCY = m.y + 30; if (distTo(player.x, player.y, inCX, inCY) < interactRad && player.wood > 0) { let drop = Math.min(player.wood, 10 - m.inputWood); m.inputWood += drop; player.wood -= drop; } if (distTo(player.x, player.y, outCX, outCY) < interactRad && m.outputLumber > 0) { player.lumber += m.outputLumber; m.outputLumber = 0; } });
+            const checkCounter = (counter, isLumber, customersArr, cashierObj) => { const zoneW = counter.width / 3; let cY = counter.y + counter.height / 2; if (distTo(player.x, player.y, counter.x + zoneW * 2.5, cY) < interactRad) { if (isLumber && player.lumber > 0) { counter.lumber += player.lumber; player.lumber = 0; } else if (!isLumber && player.wood > 0) { counter.wood += player.wood; player.wood = 0; } } if (distTo(player.x, player.y, counter.x + zoneW * 1.5, cY) < interactRad && !cashierObj.bought) processTransaction(counter, customersArr, isLumber); if (distTo(player.x, player.y, counter.x + zoneW * 0.5, cY) < interactRad && counter.money > 0) { money += counter.money; counter.money = 0; } };
+            checkCounter(counterLog, false, customersLog, upgrades.cashierLog); if (upgrades.machineBuy.count > 0) checkCounter(counterLumber, true, customersLumber, upgrades.cashierLumber);
+            if (upgrades.cashierLog.bought) { cashierTimerLog -= dt; if (cashierTimerLog <= 0) { processTransaction(counterLog, customersLog, false); cashierTimerLog = 0.5; } }
+            if (upgrades.cashierLumber.bought) { cashierTimerLumber -= dt; if (cashierTimerLumber <= 0) { processTransaction(counterLumber, customersLumber, true); cashierTimerLumber = 0.5; } }
+
+            let standingOnUpgrade = null;
+            Object.values(upgrades).forEach(up => { if (up.cd > 0) up.cd -= dt; if (up.hidden && up.hidden()) return; if (inZone(player.x, player.y, up.box) && up.req() && up.cd <= 0) standingOnUpgrade = up; });
+            if (standingOnUpgrade && money >= standingOnUpgrade.cost()) { uiOkBtn.active = true; uiOkBtn.target = standingOnUpgrade; } else { uiOkBtn.active = false; uiOkBtn.target = null; }
+            spawnTimerLog -= dt; if (spawnTimerLog <= 0) { if (customersLog.length < 10) customersLog.push({ need: Math.floor(Math.random() * 7) + 2 }); spawnTimerLog = 2.0; }
+            if (upgrades.machineBuy.count > 0) { spawnTimerLumber -= dt; if (spawnTimerLumber <= 0) { if (customersLumber.length < 10) customersLumber.push({ need: Math.floor(Math.random() * 5) + 2 }); spawnTimerLumber = 3.0; } }
+
+            saveTimer -= dt;
+            if (saveTimer <= 0) {
+                saveGame();
+                saveTimer = 3.0; 
+            }
+        }
+
+        function formatTime(ts) {
+            if (!ts) return '無紀錄';
+            let d = new Date(ts);
+            return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+        }
+
+        function drawCounter(counter, title, itemLabel, isLumber, cashierObj) { const zW = counter.width / 3; ctx.fillStyle = '#FFD700'; ctx.fillRect(counter.x, counter.y, zW, counter.height); ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText('領錢區', counter.x + 15, counter.y + 30); ctx.fillText(`$${counter.money}`, counter.x + 15, counter.y + 60); ctx.fillStyle = '#8B4513'; ctx.fillRect(counter.x + zW, counter.y, zW, counter.height); ctx.fillStyle = '#FFF'; ctx.fillText('結帳區', counter.x + zW + 15, counter.y + 30); ctx.font = '12px Arial'; ctx.fillText(title, counter.x + zW + 10, counter.y + 60); if (cashierObj.bought) { ctx.fillStyle = '#FFD700'; ctx.beginPath(); ctx.arc(counter.x + zW * 1.5, counter.y + 20, 10, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#FFF'; ctx.fillText('收銀員', counter.x + zW + 22, counter.y + 70); } ctx.fillStyle = '#DEB887'; ctx.fillRect(counter.x + zW * 2, counter.y, zW, counter.height); ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText('放置區', counter.x + zW * 2 + 15, counter.y + 30); let val = isLumber ? counter.lumber : counter.wood; ctx.fillText(`${itemLabel}:${val}`, counter.x + zW * 2 + 15, counter.y + 60); }
+        function drawCustomers(counter, customersArr) { customersArr.forEach((c, i) => { if (i > 4) return; let cx = counter.x + (counter.width/3) * 1.5 + (i * 45), cy = counter.y + counter.height + 30; ctx.fillStyle = '#FF6347'; ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(`需:${c.need}`, cx - 15, cy + 5); }); if (customersArr.length > 5) { ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(`+${customersArr.length - 5} 人排隊`, counter.x + (counter.width/3) * 1.5 + 225, counter.y + counter.height + 35); } }
+        function drawButton(upObj) { if (upObj.hidden && upObj.hidden()) return; let enabled = upObj.req(); ctx.fillStyle = enabled ? '#ADD8E6' : '#A9A9A9'; ctx.fillRect(upObj.box.x, upObj.box.y, upObj.box.w, upObj.box.h); ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(upObj.title, upObj.box.x + 10, upObj.box.y + 20); ctx.fillText(upObj.desc(), upObj.box.x + 10, upObj.box.y + 40); }
+        function drawItemDots(x, y, count, isLumber) { ctx.fillStyle = isLumber ? '#FFA500' : '#5C3A21'; let dots = Math.min(count, 5); for (let i = 0; i < dots; i++) { let angle = i * (Math.PI * 2 / Math.max(dots, 1)); ctx.beginPath(); ctx.arc(x + Math.cos(angle)*8, y + Math.sin(angle)*8, 3, 0, Math.PI * 2); ctx.fill(); } }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save(); ctx.translate(-camera.x, -camera.y);
+            
+            ctx.strokeStyle = 'rgba(107, 142, 35, 0.3)'; 
+            ctx.lineWidth = 1; 
+            for(let i=0; i<WORLD_WIDTH; i+=100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_HEIGHT); ctx.stroke(); } 
+            for(let i=0; i<WORLD_HEIGHT; i+=100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(WORLD_WIDTH, i); ctx.stroke(); }
+            
+            drawCounter(counterLog, "(原木)", "木", false, upgrades.cashierLog); drawCustomers(counterLog, customersLog); if (upgrades.machineBuy.count > 0) { drawCounter(counterLumber, "(木材)", "材", true, upgrades.cashierLumber); drawCustomers(counterLumber, customersLumber); }
+            ctx.fillStyle = '#EEE8AA'; ctx.fillRect(autoWoodZone.x, autoWoodZone.y, autoWoodZone.w, autoWoodZone.h); ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText(`原木集中區`, autoWoodZone.x + 20, autoWoodZone.y + 35); ctx.fillText(`存量: ${autoWoodZone.wood}`, autoWoodZone.x + 20, autoWoodZone.y + 60);
+            machines.forEach(m => { ctx.fillStyle = '#808080'; ctx.fillRect(m.x, m.y, m.w, m.h); ctx.fillStyle = '#FFF'; ctx.font = '14px Arial'; ctx.fillText('去皮剖木機', m.x + 15, m.y + 35); ctx.fillStyle = '#DEB887'; ctx.fillRect(m.x + m.w, m.y + 10, 40, 40); ctx.fillStyle = '#333'; ctx.fillText(`入:${m.inputWood}`, m.x + m.w + 5, m.y + 35); ctx.fillStyle = '#F4A460'; ctx.fillRect(m.x - 40, m.y + 10, 40, 40); ctx.fillStyle = '#333'; ctx.fillText(`出:${m.outputLumber}`, m.x - 35, m.y + 35); ctx.fillStyle = '#4682B4'; ctx.beginPath(); ctx.arc(m.x + m.w/2, m.y - 15, 12, 0, Math.PI * 2); ctx.fill(); if(m.timer > 0) { let prog = 1 - (m.timer / upgrades.machineSpeed.maxTime); ctx.fillStyle = 'red'; ctx.fillRect(m.x + 10, m.y - 5, 80, 4); ctx.fillStyle = 'lime'; ctx.fillRect(m.x + 10, m.y - 5, 80 * prog, 4); } });
+            Object.values(upgrades).forEach(up => drawButton(up));
+
+            trees.forEach(tree => {
+                let safeStage = Math.max(0, Math.min(6, tree.currentStage || 0));
+                let stageData = TREE_STAGES[safeStage];
+                if (!stageData) return; 
+
+                let cx = tree.x + treeSize / 2; let cy = tree.y + treeSize / 2;
+                if (safeStage === 0) {
+                    ctx.fillStyle = stageData.color; ctx.fillRect(tree.x + 5, tree.y + treeSize - stageData.trunkH, treeSize - 10, stageData.trunkH);
+                    if (tree.isCut) { ctx.fillStyle = '#333'; ctx.font = '12px Arial'; ctx.fillText(`${Math.ceil(tree.respawnTimer)}s`, tree.x + 5, tree.y + treeSize - 15); }
+                } else {
+                    ctx.fillStyle = '#8B4513'; let trunkW = treeSize / 3; ctx.fillRect(cx - trunkW / 2, cy + treeSize / 2 - stageData.trunkH, trunkW, stageData.trunkH);
+                    ctx.fillStyle = stageData.color; let leafY = cy + treeSize / 2 - stageData.trunkH;
+                    ctx.beginPath(); ctx.arc(cx, leafY, stageData.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = this.pSBC ? pSBC(0.1, stageData.color) : stageData.color; 
+                    ctx.beginPath(); ctx.arc(cx, leafY - stageData.radius / 2, stageData.radius * 0.8, 0, Math.PI * 2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(cx, leafY - stageData.radius, stageData.radius * 0.6, 0, Math.PI * 2); ctx.fill();
+                }
+            });
+
+            const drawBot = (arr, color, isLumber) => { arr.forEach(b => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(b.x, b.y, 12, 0, Math.PI * 2); ctx.fill(); let carry = isLumber ? b.lumber : b.wood; if (carry > 0) drawItemDots(b.x, b.y, carry, isLumber); if (b.chopTimer > 0) { let prog = 1 - (b.chopTimer / player.maxChopTime); ctx.fillStyle = 'red'; ctx.fillRect(b.x - 15, b.y - 20, 30, 4); ctx.fillStyle = 'lime'; ctx.fillRect(b.x - 15, b.y - 20, 30 * prog, 4); } }); };
+            drawBot(autoChoppers, '#8A2BE2', false); drawBot(transA, '#FF8C00', false); drawBot(transB, '#DC143C', false); drawBot(transC, '#FFD700', true); 
+            ctx.fillStyle = '#4169E1'; ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2); ctx.fill();
+            if (player.wood > 0) drawItemDots(player.x, player.y, player.wood, false); if (player.lumber > 0) drawItemDots(player.x, player.y, player.lumber, true); 
+            if (choppingTree && choppingTree.currentStage > 0) { let prog = 1 - (player.chopTimer / player.maxChopTime); ctx.fillStyle = 'red'; ctx.fillRect(player.x - 20, player.y - 30, 40, 6); ctx.fillStyle = 'lime'; ctx.fillRect(player.x - 20, player.y - 30, 40 * prog, 6); }
+            ctx.restore();
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; ctx.fillRect(10, 10, 220, 120); ctx.fillStyle = '#FFF'; ctx.font = '22px Arial'; ctx.fillText(`總資產: $${money}`, 20, 40); ctx.font = '18px Arial'; ctx.fillText(`身上原木: ${player.wood} 根`, 20, 75); ctx.fillStyle = '#FFA500'; ctx.fillText(`身上木材: ${player.lumber} 塊`, 20, 105);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; ctx.beginPath(); ctx.arc(joystick.x, joystick.y, joystick.radius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.beginPath(); ctx.arc(joystick.x + joystick.knobX, joystick.y + joystick.knobY, 25, 0, Math.PI * 2); ctx.fill();
+            if (uiOkBtn.active && uiOkBtn.target) { ctx.fillStyle = '#32CD32'; ctx.fillRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); ctx.strokeStyle = '#006400'; ctx.lineWidth = 4; ctx.strokeRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); ctx.fillStyle = '#FFF'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(`確認購買 ($${uiOkBtn.target.cost()})`, uiOkBtn.x + uiOkBtn.w / 2, uiOkBtn.y + 35); ctx.textAlign = 'left'; }
+            
+            ctx.fillStyle = '#CD5C5C'; ctx.fillRect(clearSaveBtn.x, clearSaveBtn.y, clearSaveBtn.w, clearSaveBtn.h);
+            ctx.fillStyle = '#FFF'; ctx.font = '16px Arial'; ctx.textAlign = 'center'; ctx.fillText('清除存檔', clearSaveBtn.x + clearSaveBtn.w / 2, clearSaveBtn.y + 25); ctx.textAlign = 'left';
+
+            ctx.fillStyle = '#333'; ctx.font = '16px Arial';
+            ctx.fillText(`首次互動: ${formatTime(firstInteractionTime)}`, 10, canvas.height - 35);
+            ctx.fillText(`最後互動: ${formatTime(lastInteractionTime)}`, 10, canvas.height - 10);
+        }
+
+        function loop(timestamp) { 
+            let rawDt = (timestamp - lastTime) / 1000;
+            let dt = Math.max(0, Math.min(0.1, rawDt)); 
+            lastTime = timestamp; 
+            update(dt); 
+            draw(); 
+            requestAnimationFrame(loop); 
+        }
+        requestAnimationFrame(loop);
+
+        function pSBC(p, c0) { let r, g, b, P, i, f, Math_round = Math.round, d = c0.length>5?c0:null; if (!d) return null; P = p < 0; i = parseInt; f = d.slice(1); P = p < 0 ? p * -1 : p; P = 1 - P; r = i(f.slice(0, 2), 16); g = i(f.slice(2, 4), 16); b = i(f.slice(4, 6), 16); r = Math_round(r * P); g = Math_round(g * P); b = Math_round(b * P); return "#" + (0x1000000 + (r * 0x10000) + (g * 0x100) + b).toString(16).slice(1); }
+    </script>
+</body>
+</html>
