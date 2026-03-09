@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨1</title>
+    <title>伐木大亨</title>
     <style>
         body {
             margin: 0;
@@ -25,16 +25,37 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
+        // 升級區塊設定 (初始值，會在 resize 中重新定位)
+        const upgrades = {
+            speed: { x: 0, y: 0, w: 140, h: 60, cost: 50, level: 1, cooldown: 0 },
+            auto: { x: 0, y: 0, w: 140, h: 60, cost: 100, count: 0, maxCount: 5, cooldown: 0 }
+        };
+
+        const autoWoodZone = {
+            x: 0, y: 0, w: 120, h: 80, wood: 0
+        };
+
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             
-            // 隨視窗大小調整固定區域位置
+            // 左側：收銀台維持在左下角上方
             counter.y = canvas.height - 300;
-            upgrades.speed.y = canvas.height - 100;
-            upgrades.auto.y = canvas.height - 100;
-            autoWoodZone.x = canvas.width - 200;
-            autoWoodZone.y = canvas.height - 250;
+            
+            // 右側：森林起始 X 軸與底部 Y 軸
+            let forestStartX = canvas.width - 350;
+            let forestBottomY = 50 + (5 * 60); // startY + 5排 * spacing
+            
+            // 將購買區移至森林區下方
+            upgrades.speed.x = forestStartX;
+            upgrades.speed.y = forestBottomY + 40;
+            
+            upgrades.auto.x = forestStartX + 160;
+            upgrades.auto.y = forestBottomY + 40;
+
+            // 木頭集中區放在購買區下方
+            autoWoodZone.x = forestStartX + 80;
+            autoWoodZone.y = forestBottomY + 120;
         }
 
         let money = 0;
@@ -50,11 +71,11 @@
             targetX: window.innerWidth / 2,
             targetY: window.innerHeight / 2,
             chopTimer: 0,
-            maxChopTime: 6.0 // 初始砍樹需要 6 秒
+            maxChopTime: 6.0 
         };
         let choppingTree = null; 
 
-        // 收銀台設定 (挪高以容納下方排隊)
+        // 收銀台設定
         const counter = {
             x: 50,
             y: window.innerHeight - 300,
@@ -64,21 +85,8 @@
             money: 0
         };
 
-        // 升級區塊設定
-        const upgrades = {
-            speed: { x: 50, y: window.innerHeight - 100, w: 140, h: 60, cost: 50, level: 1, cooldown: 0 },
-            auto: { x: 210, y: window.innerHeight - 100, w: 140, h: 60, cost: 100, count: 0, maxCount: 5, cooldown: 0 }
-        };
-
-        // 自動小幫手與集中區
+        // 自動小幫手
         const autoChoppers = [];
-        const autoWoodZone = {
-            x: window.innerWidth - 200,
-            y: window.innerHeight - 250,
-            w: 120,
-            h: 80,
-            wood: 0
-        };
 
         // 客人設定
         const customers = [];
@@ -98,14 +106,14 @@
                     y: startY + j * spacing,
                     size: treeSize,
                     isCut: false,
-                    isTargeted: false, // 避免多個幫手鎖定同一棵樹
+                    isTargeted: false, 
                     respawnTimer: 0
                 });
             }
         }
 
         window.addEventListener('resize', resize);
-        resize();
+        resize(); // 初始化定位
 
         function setTarget(e) {
             let clientX = e.clientX;
@@ -143,7 +151,7 @@
                 player.y += (dy / dist) * player.speed * dt;
             }
 
-            // 2. 玩家砍樹邏輯 (需耗時 maxChopTime)
+            // 2. 玩家砍樹邏輯
             let isNearAnyTree = false;
             trees.forEach(tree => {
                 if (!tree.isCut) {
@@ -171,7 +179,7 @@
                 player.chopTimer -= dt;
                 if (player.chopTimer <= 0) {
                     choppingTree.isCut = true;
-                    choppingTree.respawnTimer = 30.0; // 改為 30 秒重生
+                    choppingTree.respawnTimer = 30.0; 
                     player.wood += 3;
                     choppingTree = null;
                 }
@@ -182,7 +190,6 @@
             // 3. 自動小幫手邏輯
             autoChoppers.forEach(bot => {
                 if (bot.state === 'idle') {
-                    // 尋找最近且未被鎖定的樹
                     let target = null;
                     let minDist = Infinity;
                     trees.forEach(t => {
@@ -198,7 +205,7 @@
                     }
                 } else if (bot.state === 'moving_to_tree') {
                     if (bot.targetTree.isCut) {
-                        bot.state = 'idle'; // 樹已經被玩家或其他幫手砍掉
+                        bot.state = 'idle'; 
                         return;
                     }
                     let tCX = bot.targetTree.x + bot.targetTree.size / 2;
@@ -209,7 +216,7 @@
                     
                     if (bDist < 10) {
                         bot.state = 'chopping';
-                        bot.chopTimer = 6.0; // 幫手固定 6 秒砍一棵
+                        bot.chopTimer = 6.0; 
                     } else {
                         bot.x += (bDx / bDist) * bot.speed * dt;
                         bot.y += (bDy / bDist) * bot.speed * dt;
@@ -253,18 +260,16 @@
             if (upgrades.speed.cooldown > 0) upgrades.speed.cooldown -= dt;
             if (upgrades.auto.cooldown > 0) upgrades.auto.cooldown -= dt;
 
-            // 判斷是否踩在砍樹升級區
             let inSpeedZone = Math.abs(player.x - (upgrades.speed.x + upgrades.speed.w/2)) < upgrades.speed.w/2 &&
                               Math.abs(player.y - (upgrades.speed.y + upgrades.speed.h/2)) < upgrades.speed.h/2;
             if (inSpeedZone && upgrades.speed.cooldown <= 0 && money >= upgrades.speed.cost && player.maxChopTime > 1) {
                 money -= upgrades.speed.cost;
                 player.maxChopTime -= 1;
                 upgrades.speed.level += 1;
-                upgrades.speed.cost = Math.floor(upgrades.speed.cost * 1.5); // 下一級變貴
+                upgrades.speed.cost = Math.floor(upgrades.speed.cost * 1.5); 
                 upgrades.speed.cooldown = 1.0;
             }
 
-            // 判斷是否踩在幫手升級區
             let inAutoZone = Math.abs(player.x - (upgrades.auto.x + upgrades.auto.w/2)) < upgrades.auto.w/2 &&
                              Math.abs(player.y - (upgrades.auto.y + upgrades.auto.h/2)) < upgrades.auto.h/2;
             if (inAutoZone && upgrades.auto.cooldown <= 0 && money >= upgrades.auto.cost && upgrades.auto.count < upgrades.auto.maxCount) {
@@ -351,11 +356,10 @@
             ctx.fillText('放木區', counter.x + zoneWidth * 2 + 15, counter.y + 30);
             ctx.fillText(`木:${counter.wood}`, counter.x + zoneWidth * 2 + 15, counter.y + 60);
             
-            // === 繪製橫向排隊的客人 ===
+            // === 繪製橫向排隊的客人 (在收銀區下方) ===
             customers.forEach((c, index) => {
                 if (index > 4) return; 
                 
-                // 改為橫向排列，從結帳區正下方開始往右排
                 let cx = counter.x + zoneWidth * 1.5 + (index * 45); 
                 let cy = counter.y + counter.height + 30; 
 
@@ -372,8 +376,7 @@
                 ctx.fillText(`+${customers.length - 5} 人排隊中`, counter.x + zoneWidth * 1.5 + (5 * 45), counter.y + counter.height + 35);
             }
 
-            // === 繪製升級區 ===
-            // 升級速度
+            // === 繪製升級區 (在森林區下方) ===
             ctx.fillStyle = player.maxChopTime > 1 ? '#ADD8E6' : '#D3D3D3';
             ctx.fillRect(upgrades.speed.x, upgrades.speed.y, upgrades.speed.w, upgrades.speed.h);
             ctx.fillStyle = '#333';
@@ -383,7 +386,6 @@
                 ctx.fillText(`$${upgrades.speed.cost} (Lv.${upgrades.speed.level})`, upgrades.speed.x + 15, upgrades.speed.y + 45);
             }
 
-            // 升級幫手
             ctx.fillStyle = upgrades.auto.count < upgrades.auto.maxCount ? '#FFB6C1' : '#D3D3D3';
             ctx.fillRect(upgrades.auto.x, upgrades.auto.y, upgrades.auto.w, upgrades.auto.h);
             ctx.fillStyle = '#333';
@@ -415,7 +417,7 @@
 
             // === 繪製自動幫手 ===
             autoChoppers.forEach(bot => {
-                ctx.fillStyle = '#8A2BE2'; // 紫色代表幫手
+                ctx.fillStyle = '#8A2BE2'; 
                 ctx.beginPath();
                 ctx.arc(bot.x, bot.y, 12, 0, Math.PI * 2);
                 ctx.fill();
