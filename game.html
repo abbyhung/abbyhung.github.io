@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨 - 終極效能解放版</title>
+    <title>伐木大亨 - 新手教學與售價顯示版</title>
     <style>
         body { 
             margin: 0; padding: 0; overflow: hidden; background-color: #C7EDCC; 
@@ -18,10 +18,10 @@
     <script>
         console.log(`
 =========================================
-[伐木大亨] 版本更新日誌 (v8.0)
-1. 修正: 砍樹幫手現在擁有獨立的「幫手砍伐 (-1s)」升級選項，不再受限於預設的 6 秒。
-2. 介面: 森林區升級按鈕重新排版為 2x3 網格，美觀且直覺。
-3. 優化: 幫手的連續砍樹判定更加聰明，只要背包未滿就會繼續砍伐。
+[伐木大亨] 版本更新日誌 (v5.0)
+1. 系統: 新增畫面上方的「動態新手教學指引」。
+2. 介面: 收銀台現在會顯示各項商品的「當前單價」。
+3. 介面: 單價提升按鈕現在會顯示當前價格與升級花費。
 =========================================
         `);
 
@@ -37,16 +37,14 @@
 
         let firstInteractionTime = null; let lastInteractionTime = null; let saveTimer = 3.0; 
 
-        // 全域經濟與物理變數 (幫手與運送員完全獨立)
-        let gTransSpeed = 250;  
-        let gTransCarry = 5;    
-        let gChopSpeed = 250;   
-        let gChopCarry = 3;     
-        let gChopTime = 6.0;    // 【新增】幫手獨立的砍樹時間
+        // 全域經濟與物流變數
+        let gTSpeed = 250;  
+        let gTCarry = 5;    
         let pLog = 5;       
         let pLumb = 15;     
         let pPlank = 10;    
 
+        // 新手教學進度 (0: 砍樹, 1: 結帳, 2: 買幫手, 3: 買機器, 4: 完成隱藏)
         let tutorialStep = 0;
         const tutorialMsgs = [
             "【新手指引】使用 WASD 鍵或右下搖桿移動，走到右方森林砍伐樹木。",
@@ -76,6 +74,7 @@
         const machines1 = []; 
         const machines2 = []; 
 
+        // 為了容納更多文字，收銀台高度調整為 90
         const counterLog = { x: 150, y: 1250, width: 240, height: 90, count: 0, money: 0 };
         const counterLumber = { x: 150, y: 750, width: 240, height: 90, count: 0, money: 0 };
         const counterPlank = { x: 150, y: 250, width: 240, height: 90, count: 0, money: 0 };
@@ -114,54 +113,44 @@
         }
 
         const upgrades = {
-            // 【UI排版優化】：2x3 網格
-            speed: { box: {x: forestStartX, y: 0, w: 140, h: 40}, title: '玩家效率 (-1s)', costVal: 50, level: 1, cd: 0, req: function() { return player.maxChopTime > 1; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '已滿等'; }, action: function() { player.maxChopTime -= 1; this.level++; this.costVal = Math.floor(this.costVal * 1.5); } },
-            auto: { box: {x: forestStartX + 150, y: 0, w: 140, h: 40}, title: '買砍樹幫手', costVal: 150, count: 0, max: 5, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; this.costVal = Math.floor(this.costVal * 1.5); autoChoppers.push({x: this.box.x + 70, y: this.box.y - 20, carry: 0, state: 'idle'}); } },
-            chopBotSpeed: { box: {x: forestStartX, y: 0, w: 140, h: 40}, title: '幫手跑速 (+50)', costVal: 200, level: 1, cd: 0, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); gChopSpeed += 50; } },
-            chopBotCarry: { box: {x: forestStartX + 150, y: 0, w: 140, h: 40}, title: '幫手容量 (+3木)', costVal: 300, level: 1, cd: 0, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 2.0); gChopCarry += 3; } },
+            speed: { box: {x: forestStartX, y: 0, w: 140, h: 50}, title: '砍樹效率 (-1s)', costVal: 50, level: 1, cd: 0, req: function() { return player.maxChopTime > 1; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '已滿等'; }, action: function() { player.maxChopTime -= 1; this.level++; this.costVal = Math.floor(this.costVal * 1.5); } },
+            auto: { box: {x: forestStartX + 150, y: 0, w: 140, h: 50}, title: '砍樹幫手', costVal: 150, count: 0, max: 5, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; this.costVal = Math.floor(this.costVal * 1.5); autoChoppers.push({x: this.box.x + 70, y: this.box.y - 20, speed: gTSpeed, carry: 0, state: 'idle'}); } },
+            expand: { box: {x: forestStartX, y: 0, w: 290, h: 50}, title: '擴建森林', costVal: 300, level: 0, max: 5, cd: 0, req: function() { return this.level < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${forestCols}x${forestRows})` : '已達極限'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); let oc = forestCols, or = forestRows; forestCols++; forestRows++; buildForest(forestCols, forestRows, oc, or); updateUIPositions(); } },
             
-            // 【新增】：幫手獨立砍樹效率
-            chopBotTime: { box: {x: forestStartX, y: 0, w: 140, h: 40}, title: '幫手砍伐 (-1s)', costVal: 250, level: 1, cd: 0, req: function() { return gChopTime > 1; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '已滿等'; }, action: function() { gChopTime -= 1; this.level++; this.costVal = Math.floor(this.costVal * 1.8); } },
-            expand: { box: {x: forestStartX + 150, y: 0, w: 140, h: 40}, title: '擴建森林', costVal: 300, level: 0, max: 5, cd: 0, req: function() { return this.level < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (${forestCols}x${forestRows})` : '已達極限'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); let oc = forestCols, or = forestRows; forestCols++; forestRows++; buildForest(forestCols, forestRows, oc, or); updateUIPositions(); } },
+            transSpeed: { box: {x: 2300, y: 440, w: 140, h: 50}, title: '物流跑速 (+50)', costVal: 400, level: 1, cd: 0, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); gTSpeed += 50; } },
+            transCarry: { box: {x: 2300, y: 500, w: 140, h: 50}, title: '物流容量 (+2)', costVal: 600, level: 1, cd: 0, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 2.0); gTCarry += 2; } },
+
+            transA: { box: {x: 2300, y: 320, w: 140, h: 50}, title: '運A (賣原木)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transA.push({x: zoneWood.x + 60, y: zoneWood.y + 40, speed: gTSpeed, carry: 0, state: 'idle'}); } },
+            transB: { box: {x: 2300, y: 380, w: 140, h: 50}, title: '運B (送去皮機)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transB.push({x: zoneWood.x + 60, y: zoneWood.y + 40, speed: gTSpeed, carry: 0, state: 'idle'}); } },
             
-            // 物流升級
-            transSpeed: { box: {x: 2300, y: 440, w: 140, h: 40}, title: '物流跑速 (+50)', costVal: 400, level: 1, cd: 0, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); gTransSpeed += 50; } },
-            transCarry: { box: {x: 2300, y: 490, w: 140, h: 40}, title: '物流容量 (+2)', costVal: 600, level: 1, cd: 0, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 2.0); gTransCarry += 2; } },
-
-            transA: { box: {x: 2300, y: 320, w: 140, h: 40}, title: '運A (賣原木)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transA.push({x: zoneWood.x + 60, y: zoneWood.y + 40, carry: 0, state: 'idle'}); } },
-            transB: { box: {x: 2300, y: 370, w: 140, h: 40}, title: '運B (送去皮機)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transB.push({x: zoneWood.x + 60, y: zoneWood.y + 40, carry: 0, state: 'idle'}); } },
+            m1Buy: { box: {x: 1900, y: 320, w: 160, h: 50}, title: '去皮剖木機', costs: [300, 700, 1500, 3000], count: 0, max: 4, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { machines1.push({x: 1900, y: 460 + this.count * 120, w: 100, h: 60, inCount: 0, outCount: 0, timer: 0}); this.count++; } },
+            m1Speed: { box: {x: 1900, y: 380, w: 160, h: 50}, title: '去皮效率 (-1s)', costVal: 300, level: 1, maxTime: 6.0, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.level < 5; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.maxTime -= 1.0; this.costVal = Math.floor(this.costVal * 1.8); } },
             
-            m1Buy: { box: {x: 1900, y: 320, w: 160, h: 40}, title: '去皮剖木機', costs: [300, 700, 1500, 3000], count: 0, max: 4, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { machines1.push({x: 1900, y: 460 + this.count * 120, w: 100, h: 60, inCount: 0, outCount: 0, timer: 0}); this.count++; } },
-            m1Speed: { box: {x: 1900, y: 370, w: 160, h: 40}, title: '去皮效率 (-1s)', costVal: 300, level: 1, maxTime: 6.0, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.level < 5; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.maxTime -= 1.0; this.costVal = Math.floor(this.costVal * 1.8); } },
-            
-            transC: { box: {x: 1500, y: 320, w: 140, h: 40}, title: '運C (收木材)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transC.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, carry: 0, state: 'idle'}); } },
-            transD: { box: {x: 1500, y: 370, w: 140, h: 40}, title: '運D (賣木材)', costs: [100, 300, 800], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transD.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, carry: 0, state: 'idle'}); } },
-            transE: { box: {x: 1500, y: 420, w: 140, h: 40}, title: '運E (送木板機)', costs: [100, 300, 800], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transE.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, carry: 0, state: 'idle'}); } },
+            transC: { box: {x: 1500, y: 320, w: 140, h: 50}, title: '運C (收木材)', costs: [50, 150, 400], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transC.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, speed: gTSpeed, carry: 0, state: 'idle'}); } },
+            transD: { box: {x: 1500, y: 380, w: 140, h: 50}, title: '運D (賣木材)', costs: [100, 300, 800], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transD.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, speed: gTSpeed, carry: 0, state: 'idle'}); } },
+            transE: { box: {x: 1500, y: 440, w: 140, h: 50}, title: '運E (送木板機)', costs: [100, 300, 800], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transE.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, speed: gTSpeed, carry: 0, state: 'idle'}); } },
 
-            m2Buy: { box: {x: 1100, y: 320, w: 160, h: 40}, title: '木板切割機 (1換3)', costs: [1000, 2500, 5000, 10000], count: 0, max: 4, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { machines2.push({x: 1100, y: 460 + this.count * 120, w: 100, h: 60, inCount: 0, outCount: 0, timer: 0}); this.count++; } },
-            m2Speed: { box: {x: 1100, y: 370, w: 160, h: 40}, title: '切割效率 (-1s)', costVal: 1000, level: 1, maxTime: 6.0, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return this.level < 5; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.maxTime -= 1.0; this.costVal = Math.floor(this.costVal * 1.8); } },
+            m2Buy: { box: {x: 1100, y: 320, w: 160, h: 50}, title: '木板切割機 (1換3)', costs: [1000, 2500, 5000, 10000], count: 0, max: 4, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { machines2.push({x: 1100, y: 460 + this.count * 120, w: 100, h: 60, inCount: 0, outCount: 0, timer: 0}); this.count++; } },
+            m2Speed: { box: {x: 1100, y: 380, w: 160, h: 50}, title: '切割效率 (-1s)', costVal: 1000, level: 1, maxTime: 6.0, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return this.level < 5; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal} (Lv.${this.level})` : '滿等'; }, action: function() { this.level++; this.maxTime -= 1.0; this.costVal = Math.floor(this.costVal * 1.8); } },
 
-            transF: { box: {x: 700, y: 320, w: 140, h: 40}, title: '運F (收木板)', costs: [200, 600, 1500], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transF.push({x: zonePlank.x + 60, y: zonePlank.y + 40, carry: 0, state: 'idle'}); } },
-            transG: { box: {x: 700, y: 370, w: 140, h: 40}, title: '運G (賣木板)', costs: [200, 600, 1500], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transG.push({x: zonePlank.x + 60, y: zonePlank.y + 40, carry: 0, state: 'idle'}); } },
+            transF: { box: {x: 700, y: 320, w: 140, h: 50}, title: '運F (收木板)', costs: [200, 600, 1500], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transF.push({x: zonePlank.x + 60, y: zonePlank.y + 40, speed: gTSpeed, carry: 0, state: 'idle'}); } },
+            transG: { box: {x: 700, y: 380, w: 140, h: 50}, title: '運G (賣木板)', costs: [200, 600, 1500], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `$${this.cost()} (${this.count}/${this.max})` : '已滿編'; }, action: function() { this.count++; transG.push({x: zonePlank.x + 60, y: zonePlank.y + 40, speed: gTSpeed, carry: 0, state: 'idle'}); } },
 
-            cashierLog: { box: {x: counterLog.x + 300, y: counterLog.y + 5, w: 140, h: 38}, title: '自動收銀 (原木)', costVal: 200, bought: false, cd: 0, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } },
-            priceLog: { box: {x: counterLog.x + 300, y: counterLog.y + 48, w: 140, h: 38}, title: '原木漲價 (+$2)', costVal: 300, level: 1, cd: 0, req: function() { return true; }, cost: function() { return this.costVal; }, desc: function() { return `[現:$${pLog}] 升:$${this.costVal}`; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.5); pLog += 2; } },
+            cashierLog: { box: {x: counterLog.x + 300, y: counterLog.y + 15, w: 140, h: 50}, title: '自動收銀 (原木)', costVal: 200, bought: false, cd: 0, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } },
+            priceLog: { box: {x: counterLog.x + 300, y: counterLog.y + 75, w: 140, h: 50}, title: '原木漲價 (+$2)', costVal: 300, level: 1, cd: 0, req: function() { return true; }, cost: function() { return this.costVal; }, desc: function() { return `[現:$${pLog}] 升:$${this.costVal}`; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.5); pLog += 2; } },
 
-            cashierLumber: { box: {x: counterLumber.x + 300, y: counterLumber.y + 5, w: 140, h: 38}, title: '自動收銀 (木材)', costVal: 800, bought: false, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } },
-            priceLumber: { box: {x: counterLumber.x + 300, y: counterLumber.y + 48, w: 140, h: 38}, title: '木材漲價 (+$5)', costVal: 800, level: 1, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return true; }, cost: function() { return this.costVal; }, desc: function() { return `[現:$${pLumb}] 升:$${this.costVal}`; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.6); pLumb += 5; } },
+            cashierLumber: { box: {x: counterLumber.x + 300, y: counterLumber.y + 15, w: 140, h: 50}, title: '自動收銀 (木材)', costVal: 800, bought: false, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } },
+            priceLumber: { box: {x: counterLumber.x + 300, y: counterLumber.y + 75, w: 140, h: 50}, title: '木材漲價 (+$5)', costVal: 800, level: 1, cd: 0, hidden: function() { return upgrades.m1Buy.count === 0; }, req: function() { return true; }, cost: function() { return this.costVal; }, desc: function() { return `[現:$${pLumb}] 升:$${this.costVal}`; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.6); pLumb += 5; } },
 
-            cashierPlank: { box: {x: counterPlank.x + 300, y: counterPlank.y + 5, w: 140, h: 38}, title: '自動收銀 (木板)', costVal: 2000, bought: false, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } },
-            pricePlank: { box: {x: counterPlank.x + 300, y: counterPlank.y + 48, w: 140, h: 38}, title: '木板漲價 (+$4)', costVal: 2000, level: 1, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return true; }, cost: function() { return this.costVal; }, desc: function() { return `[現:$${pPlank}] 升:$${this.costVal}`; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.6); pPlank += 4; } }
+            cashierPlank: { box: {x: counterPlank.x + 300, y: counterPlank.y + 15, w: 140, h: 50}, title: '自動收銀 (木板)', costVal: 2000, bought: false, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } },
+            pricePlank: { box: {x: counterPlank.x + 300, y: counterPlank.y + 75, w: 140, h: 50}, title: '木板漲價 (+$4)', costVal: 2000, level: 1, cd: 0, hidden: function() { return upgrades.m2Buy.count === 0; }, req: function() { return true; }, cost: function() { return this.costVal; }, desc: function() { return `[現:$${pPlank}] 升:$${this.costVal}`; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.6); pPlank += 4; } }
         };
 
         function updateUIPositions() {
             let bottomY = startY + (forestRows * spacing);
             upgrades.speed.box.y = bottomY + 30;
             upgrades.auto.box.y = bottomY + 30;
-            upgrades.chopBotSpeed.box.y = bottomY + 80;
-            upgrades.chopBotCarry.box.y = bottomY + 80;
-            upgrades.chopBotTime.box.y = bottomY + 130;
-            upgrades.expand.box.y = bottomY + 130;
+            upgrades.expand.box.y = bottomY + 90;
         }
 
         function formatTime(ts) {
@@ -172,10 +161,10 @@
 
         function saveGame() {
             const data = {
-                version: 8, 
+                version: 5, 
                 tutorialStep: tutorialStep,
                 money: money,
-                globals: { gTransSpeed, gTransCarry, gChopSpeed, gChopCarry, gChopTime, pLog, pLumb, pPlank },
+                globals: { gTSpeed: gTSpeed, gTCarry: gTCarry, pLog: pLog, pLumb: pLumb, pPlank: pPlank },
                 player: player,
                 counterLog: counterLog, counterLumber: counterLumber, counterPlank: counterPlank,
                 zoneWood: zoneWood, zoneLumber: zoneLumber, zonePlank: zonePlank,
@@ -196,16 +185,11 @@
             if (!saved) return false;
             try {
                 const data = JSON.parse(saved);
-                if (data.version !== 8) return false; 
+                if (data.version !== 5) return false; 
                 
                 tutorialStep = data.tutorialStep || 0;
                 money = data.money || 0;
-                if (data.globals) { 
-                    gTransSpeed = data.globals.gTransSpeed || 250; gTransCarry = data.globals.gTransCarry || 5; 
-                    gChopSpeed = data.globals.gChopSpeed || 250; gChopCarry = data.globals.gChopCarry || 3;
-                    gChopTime = data.globals.gChopTime || 6.0;
-                    pLog = data.globals.pLog || 5; pLumb = data.globals.pLumb || 15; pPlank = data.globals.pPlank || 10; 
-                }
+                if (data.globals) { gTSpeed = data.globals.gTSpeed; gTCarry = data.globals.gTCarry; pLog = data.globals.pLog; pLumb = data.globals.pLumb; pPlank = data.globals.pPlank; }
                 Object.assign(player, data.player);
                 Object.assign(counterLog, data.counterLog); Object.assign(counterLumber, data.counterLumber); Object.assign(counterPlank, data.counterPlank);
                 Object.assign(zoneWood, data.zoneWood); Object.assign(zoneLumber, data.zoneLumber); Object.assign(zonePlank, data.zonePlank);
@@ -231,16 +215,16 @@
         }
         updateUIPositions();
         
-        for(let i=0; i<upgrades.auto.count; i++) autoChoppers.push({x: upgrades.auto.box.x + 70, y: upgrades.auto.box.y - 20, carry: 0, state: 'idle'});
-        for(let i=0; i<upgrades.transA.count; i++) transA.push({x: zoneWood.x + 60, y: zoneWood.y + 40, carry: 0, state: 'idle'});
-        for(let i=0; i<upgrades.transB.count; i++) transB.push({x: zoneWood.x + 60, y: zoneWood.y + 40, carry: 0, state: 'idle'});
+        for(let i=0; i<upgrades.auto.count; i++) autoChoppers.push({x: upgrades.auto.box.x + 70, y: upgrades.auto.box.y - 20, speed: gTSpeed, carry: 0, state: 'idle'});
+        for(let i=0; i<upgrades.transA.count; i++) transA.push({x: zoneWood.x + 60, y: zoneWood.y + 40, speed: gTSpeed, carry: 0, state: 'idle'});
+        for(let i=0; i<upgrades.transB.count; i++) transB.push({x: zoneWood.x + 60, y: zoneWood.y + 40, speed: gTSpeed, carry: 0, state: 'idle'});
         for(let i=0; i<upgrades.m1Buy.count; i++) machines1.push({x: 1900, y: 460 + i * 120, w: 100, h: 60, inCount: 0, outCount: 0, timer: 0});
-        for(let i=0; i<upgrades.transC.count; i++) transC.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, carry: 0, state: 'idle'});
-        for(let i=0; i<upgrades.transD.count; i++) transD.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, carry: 0, state: 'idle'});
-        for(let i=0; i<upgrades.transE.count; i++) transE.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, carry: 0, state: 'idle'});
+        for(let i=0; i<upgrades.transC.count; i++) transC.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, speed: gTSpeed, carry: 0, state: 'idle'});
+        for(let i=0; i<upgrades.transD.count; i++) transD.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, speed: gTSpeed, carry: 0, state: 'idle'});
+        for(let i=0; i<upgrades.transE.count; i++) transE.push({x: zoneLumber.x + 60, y: zoneLumber.y + 40, speed: gTSpeed, carry: 0, state: 'idle'});
         for(let i=0; i<upgrades.m2Buy.count; i++) machines2.push({x: 1100, y: 460 + i * 120, w: 100, h: 60, inCount: 0, outCount: 0, timer: 0});
-        for(let i=0; i<upgrades.transF.count; i++) transF.push({x: zonePlank.x + 60, y: zonePlank.y + 40, carry: 0, state: 'idle'});
-        for(let i=0; i<upgrades.transG.count; i++) transG.push({x: zonePlank.x + 60, y: zonePlank.y + 40, carry: 0, state: 'idle'});
+        for(let i=0; i<upgrades.transF.count; i++) transF.push({x: zonePlank.x + 60, y: zonePlank.y + 40, speed: gTSpeed, carry: 0, state: 'idle'});
+        for(let i=0; i<upgrades.transG.count; i++) transG.push({x: zonePlank.x + 60, y: zonePlank.y + 40, speed: gTSpeed, carry: 0, state: 'idle'});
 
         function isInsideUI(x, y, ui) { return x >= ui.x && x <= ui.x + ui.w && y >= ui.y && y <= ui.y + ui.h; }
         function handlePurchaseClick() { if (uiOkBtn.active && uiOkBtn.target && money >= uiOkBtn.target.cost()) { money -= uiOkBtn.target.cost(); uiOkBtn.target.action(); uiOkBtn.target.cd = 1.0; uiOkBtn.active = false; uiOkBtn.target = null; saveGame(); return true; } return false; }
@@ -291,6 +275,7 @@
             camera.x = Math.max(0, Math.min(camera.x, WORLD_WIDTH - canvas.width));
             camera.y = Math.max(0, Math.min(camera.y, WORLD_HEIGHT - canvas.height));
 
+            // 【教學進度判定】
             if (tutorialStep === 0 && player.wood > 0) tutorialStep = 1;
             if (tutorialStep === 1 && money > 0) tutorialStep = 2;
             if (tutorialStep === 2 && (upgrades.auto.count > 0 || upgrades.transA.count > 0 || upgrades.speed.level > 1)) tutorialStep = 3;
@@ -315,7 +300,6 @@
                 if (player.chopTimer <= 0) { choppingTree.isCut = true; choppingTree.currentStage = 0; choppingTree.respawnTimer = 60.0; player.wood += 3; choppingTree = null; }
             } else { if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6; choppingTree = null; }
 
-            // 【幫手優化】：套用專屬的 gChopSpeed, gChopCarry 與 gChopTime
             autoChoppers.forEach(bot => {
                 if (bot.state === 'idle') {
                     let target = null, minDist = Infinity;
@@ -324,20 +308,20 @@
                 } else if (bot.state === 'to_tree') {
                     if (bot.targetTree.isCut) { bot.state = 'idle'; return; }
                     let tCX = bot.targetTree.x + treeSize / 2, tCY = bot.targetTree.y + treeSize / 2, dist = Math.hypot(tCX - bot.x, tCY - bot.y);
-                    if (dist < 10) { bot.state = 'chopping'; bot.chopTimer = gChopTime; } // 套用獨立砍伐時間
-                    else { bot.x += (tCX - bot.x) / dist * gChopSpeed * dt; bot.y += (tCY - bot.y) / dist * gChopSpeed * dt; }
+                    if (dist < 10) { bot.state = 'chopping'; bot.chopTimer = player.maxChopTime; }
+                    else { bot.x += (tCX - bot.x) / dist * gTSpeed * dt; bot.y += (tCY - bot.y) / dist * gTSpeed * dt; }
                 } else if (bot.state === 'chopping') {
                     bot.chopTimer -= dt;
-                    bot.targetTree.currentStage = Math.max(1, Math.min(6, Math.ceil((bot.chopTimer / gChopTime) * 6)));
+                    bot.targetTree.currentStage = Math.max(1, Math.min(6, Math.ceil((bot.chopTimer / player.maxChopTime) * 6)));
                     if (bot.chopTimer <= 0) { 
                         bot.targetTree.isCut = true; bot.targetTree.currentStage = 0; bot.targetTree.isTargeted = false; bot.targetTree.respawnTimer = 60.0; 
                         bot.carry += 3; bot.targetTree = null; 
-                        bot.state = (bot.carry < gChopCarry) ? 'idle' : 'to_zone'; // 只要未滿就繼續砍
+                        bot.state = (bot.carry + 3 <= gTCarry) ? 'idle' : 'to_zone'; 
                     }
                 } else if (bot.state === 'to_zone') {
                     let zCX = zoneWood.x + zoneWood.w / 2, zCY = zoneWood.y + zoneWood.h / 2, dist = Math.hypot(zCX - bot.x, zCY - bot.y);
                     if (dist < 5) { zoneWood.count += bot.carry; bot.carry = 0; bot.state = 'idle'; }
-                    else { bot.x += (zCX - bot.x) / dist * gChopSpeed * dt; bot.y += (zCY - bot.y) / dist * gChopSpeed * dt; }
+                    else { bot.x += (zCX - bot.x) / dist * gTSpeed * dt; bot.y += (zCY - bot.y) / dist * gTSpeed * dt; }
                 }
             });
 
@@ -350,18 +334,17 @@
                 if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) m.outCount += 3; }
             });
 
-            // 運送員套用專屬的 gTransSpeed 與 gTransCarry
-            const moveBot = (t, destX, destY, onReach) => { let dist = Math.hypot(destX - t.x, destY - t.y); if (dist < 5) onReach(); else { t.x += (destX - t.x)/dist * gTransSpeed * dt; t.y += (destY - t.y)/dist * gTransSpeed * dt; } };
+            const moveBot = (t, destX, destY, onReach) => { let dist = Math.hypot(destX - t.x, destY - t.y); if (dist < 5) onReach(); else { t.x += (destX - t.x)/dist * gTSpeed * dt; t.y += (destY - t.y)/dist * gTSpeed * dt; } };
             
             transA.forEach(t => { 
                 if (t.state === 'idle') { if (zoneWood.count > 0) t.state = 'to_zone'; } 
-                else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, () => { let take = Math.min(zoneWood.count, gTransCarry - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
+                else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, () => { let take = Math.min(zoneWood.count, gTCarry - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
                 else if (t.state === 'to_dest') moveBot(t, counterLog.x + (counterLog.width/3)*2.5, counterLog.y + counterLog.height/2, () => { counterLog.count += t.carry; t.carry = 0; t.state = 'idle'; }); 
             });
 
             transB.forEach(t => { 
                 if (t.state === 'idle') { if (t.carry > 0 && machines1.some(m => m.inCount < 10)) t.state = 'to_dest'; else if (zoneWood.count > 0 && machines1.some(m => m.inCount < 10)) t.state = 'to_zone'; } 
-                else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, () => { let take = Math.min(zoneWood.count, gTransCarry - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
+                else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, () => { let take = Math.min(zoneWood.count, gTCarry - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
                 else if (t.state === 'to_dest') { 
                     let bestM = null, minV = Infinity; machines1.forEach(m => { if(m.inCount < 10 && m.inCount < minV) { minV = m.inCount; bestM = m; }});
                     if (!bestM) { t.state = 'idle'; return; }
@@ -375,10 +358,13 @@
                     let bestM = null, maxV = 0; machines1.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }});
                     if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; }
                     moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, () => { 
-                        let take = Math.min(bestM.outCount, gTransCarry - t.carry); 
+                        let take = Math.min(bestM.outCount, gTCarry - t.carry); 
                         bestM.outCount -= take; t.carry += take; 
-                        if (t.carry >= gTransCarry) t.state = 'to_zone';
-                        else { let nextM = null, nxMax = 0; machines1.forEach(m => { if(m.outCount > 0 && m.outCount > nxMax) { nxMax = m.outCount; nextM = m; }}); t.state = nextM ? 'to_dest' : 'to_zone'; }
+                        if (t.carry >= gTCarry) t.state = 'to_zone';
+                        else {
+                            let nextM = null, nxMax = 0; machines1.forEach(m => { if(m.outCount > 0 && m.outCount > nxMax) { nxMax = m.outCount; nextM = m; }});
+                            t.state = nextM ? 'to_dest' : 'to_zone';
+                        }
                     }); 
                 } 
                 else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, () => { zoneLumber.count += t.carry; t.carry = 0; t.state = 'idle'; }); 
@@ -386,13 +372,13 @@
 
             transD.forEach(t => { 
                 if (t.state === 'idle') { if (zoneLumber.count > 0) t.state = 'to_zone'; } 
-                else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, () => { let take = Math.min(zoneLumber.count, gTransCarry - t.carry); zoneLumber.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
+                else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, () => { let take = Math.min(zoneLumber.count, gTCarry - t.carry); zoneLumber.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
                 else if (t.state === 'to_dest') moveBot(t, counterLumber.x + (counterLumber.width/3)*2.5, counterLumber.y + counterLumber.height/2, () => { counterLumber.count += t.carry; t.carry = 0; t.state = 'idle'; }); 
             });
 
             transE.forEach(t => { 
                 if (t.state === 'idle') { if (t.carry > 0 && machines2.some(m => m.inCount < 10)) t.state = 'to_dest'; else if (zoneLumber.count > 0 && machines2.some(m => m.inCount < 10)) t.state = 'to_zone'; } 
-                else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, () => { let take = Math.min(zoneLumber.count, gTransCarry - t.carry); zoneLumber.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
+                else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, () => { let take = Math.min(zoneLumber.count, gTCarry - t.carry); zoneLumber.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
                 else if (t.state === 'to_dest') { 
                     let bestM = null, minV = Infinity; machines2.forEach(m => { if(m.inCount < 10 && m.inCount < minV) { minV = m.inCount; bestM = m; }});
                     if (!bestM) { t.state = 'idle'; return; }
@@ -406,11 +392,14 @@
                     let bestM = null, maxV = 0; machines2.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }});
                     if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; }
                     moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, () => { 
-                        let cap = gTransCarry * 3; 
+                        let cap = gTCarry * 3; 
                         let take = Math.min(bestM.outCount, cap - t.carry); 
                         bestM.outCount -= take; t.carry += take; 
                         if (t.carry >= cap) t.state = 'to_zone';
-                        else { let nextM = null, nxMax = 0; machines2.forEach(m => { if(m.outCount > 0 && m.outCount > nxMax) { nxMax = m.outCount; nextM = m; }}); t.state = nextM ? 'to_dest' : 'to_zone'; }
+                        else {
+                            let nextM = null, nxMax = 0; machines2.forEach(m => { if(m.outCount > 0 && m.outCount > nxMax) { nxMax = m.outCount; nextM = m; }});
+                            t.state = nextM ? 'to_dest' : 'to_zone';
+                        }
                     }); 
                 } 
                 else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, () => { zonePlank.count += t.carry; t.carry = 0; t.state = 'idle'; }); 
@@ -418,7 +407,7 @@
 
             transG.forEach(t => { 
                 if (t.state === 'idle') { if (zonePlank.count > 0) t.state = 'to_zone'; } 
-                else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, () => { let take = Math.min(zonePlank.count, gTransCarry * 3 - t.carry); zonePlank.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
+                else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, () => { let take = Math.min(zonePlank.count, gTCarry * 3); zonePlank.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
                 else if (t.state === 'to_dest') moveBot(t, counterPlank.x + (counterPlank.width/3)*2.5, counterPlank.y + counterPlank.height/2, () => { counterPlank.count += t.carry; t.carry = 0; t.state = 'idle'; }); 
             });
 
@@ -458,21 +447,25 @@
             saveTimer -= dt; if (saveTimer <= 0) { saveGame(); saveTimer = 3.0; }
         }
 
+        // 【更新】：收銀台繪製函式加入「當前單價」顯示
         function drawCounter(counter, title, itemLabel, cashierObj, currentPrice) { 
             const zW = counter.width / 3; 
             ctx.fillStyle = '#FFD700'; ctx.fillRect(counter.x, counter.y, zW, counter.height); 
             ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText('領錢區', counter.x + 15, counter.y + 35); ctx.fillText(`$${counter.money}`, counter.x + 15, counter.y + 65); 
+            
             ctx.fillStyle = '#8B4513'; ctx.fillRect(counter.x + zW, counter.y, zW, counter.height); 
             ctx.fillStyle = '#FFF'; ctx.fillText('結帳區', counter.x + zW + 15, counter.y + 25); 
             ctx.font = '12px Arial'; ctx.fillText(title, counter.x + zW + 10, counter.y + 50); 
-            ctx.fillStyle = '#FFD700'; ctx.fillText(`單價: $${currentPrice}`, counter.x + zW + 10, counter.y + 75); 
+            ctx.fillStyle = '#FFD700'; ctx.fillText(`單價: $${currentPrice}`, counter.x + zW + 10, counter.y + 75); // 單價顯示
+
             if (cashierObj.bought) { ctx.fillStyle = '#FFD700'; ctx.beginPath(); ctx.arc(counter.x + zW * 1.5, counter.y + 15, 8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#FFF'; ctx.fillText('收銀員', counter.x + zW + 22, counter.y + 85); } 
+            
             ctx.fillStyle = '#DEB887'; ctx.fillRect(counter.x + zW * 2, counter.y, zW, counter.height); 
             ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText('放置區', counter.x + zW * 2 + 15, counter.y + 35); ctx.fillText(`${itemLabel}:${counter.count}`, counter.x + zW * 2 + 15, counter.y + 65); 
         }
 
         function drawCustomers(counter, customersArr) { customersArr.forEach((c, i) => { if (i > 4) return; let cx = counter.x + (counter.width/3) * 1.5 + (i * 45), cy = counter.y + counter.height + 30; ctx.fillStyle = '#FF6347'; ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(`需:${c.need}`, cx - 15, cy + 5); }); if (customersArr.length > 5) { ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(`+${customersArr.length - 5} 人排隊`, counter.x + (counter.width/3) * 1.5 + 225, counter.y + counter.height + 35); } }
-        function drawButton(upObj) { if (upObj.hidden && upObj.hidden()) return; let enabled = upObj.req(); ctx.fillStyle = enabled ? '#ADD8E6' : '#A9A9A9'; ctx.fillRect(upObj.box.x, upObj.box.y, upObj.box.w, upObj.box.h); ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(upObj.title, upObj.box.x + 10, upObj.box.y + 18); ctx.fillText(upObj.desc(), upObj.box.x + 10, upObj.box.y + 34); }
+        function drawButton(upObj) { if (upObj.hidden && upObj.hidden()) return; let enabled = upObj.req(); ctx.fillStyle = enabled ? '#ADD8E6' : '#A9A9A9'; ctx.fillRect(upObj.box.x, upObj.box.y, upObj.box.w, upObj.box.h); ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(upObj.title, upObj.box.x + 10, upObj.box.y + 20); ctx.fillText(upObj.desc(), upObj.box.x + 10, upObj.box.y + 40); }
         function drawItemDots(x, y, count, color) { ctx.fillStyle = color; let dots = Math.min(count, 15); for (let i = 0; i < dots; i++) { let angle = i * (Math.PI * 2 / Math.max(dots, 1)); ctx.beginPath(); ctx.arc(x + Math.cos(angle)*8, y + Math.sin(angle)*8, 3, 0, Math.PI * 2); ctx.fill(); } }
 
         function draw() {
@@ -483,6 +476,7 @@
             for(let i=0; i<WORLD_WIDTH; i+=100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_HEIGHT); ctx.stroke(); } 
             for(let i=0; i<WORLD_HEIGHT; i+=100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(WORLD_WIDTH, i); ctx.stroke(); }
             
+            // 繪製收銀台並傳入當前單價
             drawCounter(counterLog, "(原木)", "木", upgrades.cashierLog, pLog); drawCustomers(counterLog, customersLog); 
             if (upgrades.m1Buy.count > 0) { drawCounter(counterLumber, "(木材)", "材", upgrades.cashierLumber, pLumb); drawCustomers(counterLumber, customersLumber); }
             if (upgrades.m2Buy.count > 0) { drawCounter(counterPlank, "(木板)", "板", upgrades.cashierPlank, pPlank); drawCustomers(counterPlank, customersPlank); }
@@ -507,18 +501,8 @@
                 else { ctx.fillStyle = '#8B4513'; let trunkW = treeSize / 3; ctx.fillRect(cx - trunkW / 2, cy + treeSize / 2 - stageData.trunkH, trunkW, stageData.trunkH); ctx.fillStyle = stageData.color; let leafY = cy + treeSize / 2 - stageData.trunkH; ctx.beginPath(); ctx.arc(cx, leafY, stageData.radius, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = this.pSBC ? pSBC(0.1, stageData.color) : stageData.color; ctx.beginPath(); ctx.arc(cx, leafY - stageData.radius / 2, stageData.radius * 0.8, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(cx, leafY - stageData.radius, stageData.radius * 0.6, 0, Math.PI * 2); ctx.fill(); }
             });
 
-            const drawBot = (arr, botColor, itemColor, isChopBot = false) => { 
-                arr.forEach(b => { 
-                    ctx.fillStyle = botColor; ctx.beginPath(); ctx.arc(b.x, b.y, 12, 0, Math.PI * 2); ctx.fill(); 
-                    if (b.carry > 0) drawItemDots(b.x, b.y, b.carry, itemColor); 
-                    if (isChopBot && b.chopTimer > 0) { 
-                        let prog = 1 - (b.chopTimer / gChopTime); 
-                        ctx.fillStyle = 'red'; ctx.fillRect(b.x - 15, b.y - 20, 30, 4); ctx.fillStyle = 'lime'; ctx.fillRect(b.x - 15, b.y - 20, 30 * prog, 4); 
-                    } 
-                }); 
-            };
-            drawBot(autoChoppers, '#8A2BE2', '#5C3A21', true); 
-            drawBot(transA, '#FF8C00', '#5C3A21'); drawBot(transB, '#DC143C', '#5C3A21'); 
+            const drawBot = (arr, botColor, itemColor) => { arr.forEach(b => { ctx.fillStyle = botColor; ctx.beginPath(); ctx.arc(b.x, b.y, 12, 0, Math.PI * 2); ctx.fill(); if (b.carry > 0) drawItemDots(b.x, b.y, b.carry, itemColor); if (b.chopTimer > 0) { let prog = 1 - (b.chopTimer / player.maxChopTime); ctx.fillStyle = 'red'; ctx.fillRect(b.x - 15, b.y - 20, 30, 4); ctx.fillStyle = 'lime'; ctx.fillRect(b.x - 15, b.y - 20, 30 * prog, 4); } }); };
+            drawBot(autoChoppers, '#8A2BE2', '#5C3A21'); drawBot(transA, '#FF8C00', '#5C3A21'); drawBot(transB, '#DC143C', '#5C3A21'); 
             drawBot(transC, '#FFD700', '#FFA500'); drawBot(transD, '#32CD32', '#FFA500'); drawBot(transE, '#00CED1', '#FFA500');
             drawBot(transF, '#FF1493', '#F5DEB3'); drawBot(transG, '#8B008B', '#F5DEB3');
 
@@ -536,12 +520,13 @@
             ctx.fillStyle = '#CD5C5C'; ctx.fillRect(clearSaveBtn.x, clearSaveBtn.y, clearSaveBtn.w, clearSaveBtn.h); ctx.fillStyle = '#FFF'; ctx.font = '16px Arial'; ctx.textAlign = 'center'; ctx.fillText('清除存檔', clearSaveBtn.x + clearSaveBtn.w / 2, clearSaveBtn.y + 25); ctx.textAlign = 'left';
             ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText(`首次互動: ${formatTime(firstInteractionTime)}`, 10, canvas.height - 35); ctx.fillText(`最後互動: ${formatTime(lastInteractionTime)}`, 10, canvas.height - 10);
             
+            // 【新增】：繪製動態新手教學指引橫幅
             if (tutorialStep < 4) {
                 let msg = tutorialMsgs[tutorialStep];
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                 let msgW = ctx.measureText(msg).width + 100;
                 ctx.fillRect(canvas.width / 2 - msgW / 2, 20, msgW, 50);
-                ctx.fillStyle = '#FFD700'; 
+                ctx.fillStyle = '#FFD700'; // 金色字體
                 ctx.font = 'bold 20px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText(msg, canvas.width / 2, 52);
