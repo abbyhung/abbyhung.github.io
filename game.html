@@ -84,6 +84,10 @@
         const WORLD_WIDTH = 4600; const WORLD_HEIGHT = 2000;
         let camera = { x: 0, y: 0 };
         
+        // 全域距離與區域判定工具
+        const distTo = (px, py, tx, ty) => Math.hypot(px - tx, py - ty);
+        const inZone = (px, py, box) => Math.abs(px - (box.x + box.w/2)) < box.w/2 && Math.abs(py - (box.y + box.h/2)) < box.h/2;
+        
         const joystick = { x: 0, y: 0, radius: 50, knobX: 0, knobY: 0, active: false, angle: 0, pull: 0, touchId: null };
         const uiOkBtn = { x: 0, y: 0, w: 200, h: 50, active: false, target: null };
         const keys = { up: false, down: false, left: false, right: false };
@@ -106,29 +110,32 @@
 
         // HUD 座標 (畫面固定)
         const HUD = {
-            statsBtn: { x: 20, y: 20, r: 20, icon: '📊' },
-            clearBtn: { x: 0, y: 20, r: 20, icon: '🗑️' }
+            statsBtn: { x: 40, y: 40, r: 20, icon: '📊' },
+            clearBtn: { x: 0, y: 40, r: 20, icon: '🗑️' }
         };
 
         const teleports = [
-            { x: 0, y: 0, r: 22, icon: "🌲", label: "森林", tx: 4000, ty: 400 },
-            { x: 0, y: 0, r: 22, icon: "🪓", label: "去皮", tx: 3300, ty: 400 },
-            { x: 0, y: 0, r: 22, icon: "🪚", label: "切割", tx: 2500, ty: 400 },
-            { x: 0, y: 0, r: 22, icon: "🔨", label: "組裝", tx: 1700, ty: 400 },
-            { x: 0, y: 0, r: 22, icon: "🏪", label: "商店", tx: 500, ty: 700 }
+            { x: 0, y: 0, r: 25, icon: "🌲", label: "森林", tx: 4000, ty: 400, color: '#228B22' },
+            { x: 0, y: 0, r: 25, icon: "🪓", label: "去皮", tx: 3300, ty: 400, color: '#8B4513' },
+            { x: 0, y: 0, r: 25, icon: "🪚", label: "切割", tx: 2500, ty: 400, color: '#D2691E' },
+            { x: 0, y: 0, r: 25, icon: "🔨", label: "組裝", tx: 1700, ty: 400, color: '#DAA520' },
+            { x: 0, y: 0, r: 25, icon: "🏪", label: "商店", tx: 500, ty: 700, color: '#FFD700' }
         ];
 
         function resize() { 
             canvas.width = window.innerWidth; canvas.height = window.innerHeight; 
-            // 搖桿固定左下角
             joystick.x = 90; joystick.y = canvas.height - 90; 
-            // 確認購買置中於頂部
             uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; uiOkBtn.y = 20; 
             HUD.clearBtn.x = canvas.width - 40;
-            // 計算傳送陣位置 (右下角)
-            let gap = 10; let totalW = teleports.length * (teleports[0].r * 2) + (teleports.length - 1) * gap;
-            let startX = canvas.width - totalW - 20;
-            teleports.forEach((tp, i) => { tp.x = startX + i * (tp.r * 2 + gap) + tp.r; tp.y = canvas.height - 40; });
+            
+            // 傳送陣垂直靠右排列
+            let gap = 15; 
+            let totalH = teleports.length * (teleports[0].r * 2) + (teleports.length - 1) * gap;
+            let startY = canvas.height / 2 - totalH / 2;
+            teleports.forEach((tp, i) => { 
+                tp.x = canvas.width - tp.r - 15; 
+                tp.y = startY + i * (tp.r * 2 + gap) + tp.r; 
+            });
         }
         window.addEventListener('resize', resize); 
 
@@ -142,7 +149,7 @@
         
         const machines1 = []; const machines2 = []; const machines3 = []; const machines4 = [];
 
-        // 收銀台 (排版更新：寬度不變，按鈕放下方，高度為 60+40=100)
+        // 收銀台
         const counterSet = { x: 150, y: 150, width: 240, height: 60, chair: 0, table: 0, money: 0 };
         const counterTable = { x: 150, y: 320, width: 240, height: 60, count: 0, money: 0 };
         const counterChair = { x: 150, y: 490, width: 240, height: 60, count: 0, money: 0 };
@@ -166,7 +173,6 @@
             for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) if (i >= oldCols || j >= oldRows) trees.push({ x: forestStartX + i * spacing, y: startY + j * spacing, size: treeSize, isCut: false, isTargeted: false, respawnTimer: 0, currentStage: 6 });
         }
 
-        // 格式化數字顯示 (K, M)
         function formatMoney(num) {
             if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
             if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
@@ -212,8 +218,8 @@
             plankCar: { box: {x: 2100, y: 580, w: 140, h: 40}, title: '木板容量', costVal: 2000, level: 1, cd: 0, hidden: function() { return upgrades.m2Buy.count===0; }, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `(+6) $${formatMoney(this.costVal)}` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 2.0); tPlankCar += 2; } },
 
             // 組裝區
-            m3Buy: { box: {x: 1700, y: 320, w: 160, h: 40}, title: '椅子廠(10材+4板)', costs: [5000, 15000, 40000], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count===0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `(${this.count}/3) $${formatMoney(this.cost())}` : '滿編'; }, action: function() { machines3.push({x: 1700, y: 420 + this.count * 130, w: 100, h: 60, inLumb: 0, inPlank: 0, outCount: 0, timer: 0}); this.count++; } },
-            m4Buy: { box: {x: 1700, y: 820, w: 160, h: 40}, title: '桌子廠(4材+10板)', costs: [8000, 20000, 50000], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count===0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `(${this.count}/3) $${formatMoney(this.cost())}` : '滿編'; }, action: function() { machines4.push({x: 1700, y: 920 + this.count * 130, w: 100, h: 60, inLumb: 0, inPlank: 0, outCount: 0, timer: 0}); this.count++; } },
+            m3Buy: { box: {x: 1700, y: 320, w: 160, h: 40}, title: '椅子廠(10材4板)', costs: [5000, 15000, 40000], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count===0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `(${this.count}/3) $${formatMoney(this.cost())}` : '滿編'; }, action: function() { machines3.push({x: 1700, y: 420 + this.count * 130, w: 100, h: 60, inLumb: 0, inPlank: 0, outCount: 0, timer: 0}); this.count++; } },
+            m4Buy: { box: {x: 1700, y: 820, w: 160, h: 40}, title: '桌子廠(4材10板)', costs: [8000, 20000, 50000], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m2Buy.count===0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `(${this.count}/3) $${formatMoney(this.cost())}` : '滿編'; }, action: function() { machines4.push({x: 1700, y: 920 + this.count * 130, w: 100, h: 60, inLumb: 0, inPlank: 0, outCount: 0, timer: 0}); this.count++; } },
 
             transJ: { box: {x: 1300, y: 320, w: 140, h: 40}, title: '運J (收椅子)', costs: [1000, 3000, 8000], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m3Buy.count===0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `(${this.count}/3) $${formatMoney(this.cost())}` : '滿編'; }, action: function() { this.count++; transJ.push({x: zoneChair.x+60, y: zoneChair.y+40, carry: 0, state: 'idle'}); } },
             transK: { box: {x: 1300, y: 620, w: 140, h: 40}, title: '運K (收桌子)', costs: [1000, 3000, 8000], count: 0, max: 3, cd: 0, hidden: function() { return upgrades.m4Buy.count===0; }, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `(${this.count}/3) $${formatMoney(this.cost())}` : '滿編'; }, action: function() { this.count++; transK.push({x: zoneTable.x+60, y: zoneTable.y+40, carry: 0, state: 'idle'}); } },
@@ -223,7 +229,6 @@
             asmCar: { box: {x: 1300, y: 850, w: 140, h: 40}, title: '組裝容量', costVal: 8000, level: 1, cd: 0, hidden: function() { return upgrades.m3Buy.count===0 && upgrades.m4Buy.count===0; }, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `(+1) $${formatMoney(this.costVal)}` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 2.0); tAsmCar += 1; } }
         };
 
-        // 將收銀台附屬按鈕透過迴圈動態建立，解決排版問題
         const counterList = [
             { id: 'Log', c: counterLog, req: null, baseP: 5, pUp: 2, pCost: 300, cCost: 200, mCost: 400, mSpawn: 2.0, mDem: 5, lbl: '原木' },
             { id: 'Lumb', c: counterLumber, req: 'm1Buy', baseP: 15, pUp: 5, pCost: 800, cCost: 800, mCost: 1000, mSpawn: 3.0, mDem: 5, lbl: '木材' },
@@ -236,8 +241,8 @@
         counterList.forEach(cl => {
             let cx = cl.c.x, cy = cl.c.y + cl.c.height + 5;
             upgrades['cash' + cl.id] = { box: {x: cx, y: cy, w: 78, h: 35}, title: '自動收銀', costVal: cl.cCost, bought: false, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return !this.bought;}, cost: function(){return this.costVal;}, desc: function(){return this.req()?`$${formatMoney(this.costVal)}`:'已配置';}, action: function(){this.bought=true;} };
-            upgrades['price' + cl.id] = { box: {x: cx + 81, y: cy, w: 78, h: 35}, title: `漲價`, costVal: cl.pCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return true;}, cost: function(){return this.costVal;}, desc: function(){return `$${formatMoney(this.costVal)}`;}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.6); window['p'+cl.id] += cl.pUp;} };
-            upgrades['mark' + cl.id] = { box: {x: cx + 162, y: cy, w: 78, h: 35}, title: '客流升級', costVal: cl.mCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return this.level < 8;}, cost: function(){return this.costVal;}, desc: function(){return this.req()?`$${formatMoney(this.costVal)}`:'滿等';}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.8); window['g'+cl.id+'Spawn'] = Math.max(0.5, window['g'+cl.id+'Spawn'] - 0.2); window['g'+cl.id+'Dem'] += cl.mDem;} };
+            upgrades['price' + cl.id] = { box: {x: cx + 81, y: cy, w: 78, h: 35}, title: `漲價`, costVal: cl.pCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return true;}, cost: function(){return this.costVal;}, desc: function(){return `升:$${formatMoney(this.costVal)}`;}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.6); window['p'+cl.id] += cl.pUp;} };
+            upgrades['mark' + cl.id] = { box: {x: cx + 162, y: cy, w: 78, h: 35}, title: '客流升級', costVal: cl.mCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return this.level < 8;}, cost: function(){return this.costVal;}, desc: function(){return this.req()?`升:$${formatMoney(this.costVal)}`:'滿等';}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.8); window['g'+cl.id+'Spawn'] = Math.max(0.5, window['g'+cl.id+'Spawn'] - 0.2); window['g'+cl.id+'Dem'] += cl.mDem;} };
         });
 
         function updateUIPositions() {
@@ -336,7 +341,6 @@
 
             if (uiOkBtn.active && isInsideUI(clientX, clientY, uiOkBtn)) { if(handlePurchaseClick()) return; } 
             
-            // 搖桿判定
             let dx = clientX - joystick.x, dy = clientY - joystick.y; 
             if (Math.hypot(dx, dy) < joystick.radius + 60) { joystick.active = true; joystick.touchId = id; updateJoystick(clientX, clientY); } 
         }
@@ -426,7 +430,7 @@
 
             if (tutorialStep === 0 && player.wood > 0) tutorialStep = 1;
             if (tutorialStep === 1 && money > 0) tutorialStep = 2;
-            if (tutorialStep === 2 && (upgrades.auto.count > 0 || upgrades.transA.count > 0 || gChopTime < 6.0)) { tutorialStep = 3; triggerTutorial("【工業化開端】\n恭喜建立自動化雛形！\n👉 最終步：購買「去皮機」加工木材，一步步邁向自動化傢俱大廠！\n\n(提示: 左上方可開啟資料面板，右下方有快速傳送陣)"); }
+            if (tutorialStep === 2 && (upgrades.auto.count > 0 || upgrades.transA.count > 0 || gChopTime < 6.0)) { tutorialStep = 3; triggerTutorial("【工業化開端】\n恭喜建立自動化雛形！\n👉 最終步：購買「去皮機」加工木材，一步步邁向自動化傢俱大廠！\n\n(提示: 左上方可開啟資料面板，右側有快速傳送陣)"); }
             if (tutorialStep === 3 && upgrades.m1Buy.count > 0) tutorialStep = 4; 
 
             if (joystick.active) { player.vx = Math.cos(joystick.angle) * player.speed * joystick.pull; player.vy = Math.sin(joystick.angle) * player.speed * joystick.pull; } 
@@ -447,7 +451,7 @@
             let closestTree = null; let minDistance = Infinity;
             trees.forEach(tree => {
                 if (!tree.isCut && (tree.currentStage === 6 || tree === choppingTree)) { 
-                    let dist = Math.hypot(player.x - (tree.x + treeSize/2), player.y - (tree.y + treeSize/2));
+                    let dist = distTo(player.x, player.y, tree.x + treeSize/2, tree.y + treeSize/2);
                     if (dist < player.radius + treeSize/2 + 10 && dist < minDistance) { minDistance = dist; closestTree = tree; }
                 } else if (tree.isCut) {
                     tree.respawnTimer -= dt;
@@ -492,7 +496,7 @@
             machines3.forEach(m => { if (m.inLumb >= 10 && m.inPlank >= 4 && m.outCount < 10 && m.timer <= 0) { m.inLumb -= 10; m.inPlank -= 4; m.timer = 2.0; } if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) m.outCount++; } });
             machines4.forEach(m => { if (m.inLumb >= 4 && m.inPlank >= 10 && m.outCount < 10 && m.timer <= 0) { m.inLumb -= 4; m.inPlank -= 10; m.timer = 3.0; } if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) m.outCount++; } });
 
-            const moveBot = (t, destX, destY, spd, onReach) => { let dist = Math.hypot(destX - t.x, destY - t.y); if (dist < 5) onReach(); else { t.x += (destX - t.x)/dist * spd * dt; t.y += (destY - t.y)/dist * spd * dt; } };
+            const moveBot = (t, destX, destY, spd, onReach) => { let dist = distTo(t.x, t.y, destX, destY); if (dist < 5) onReach(); else { t.x += (destX - t.x)/dist * spd * dt; t.y += (destY - t.y)/dist * spd * dt; } };
             
             transA.forEach(t => { if (t.state === 'idle') { if (zoneWood.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, tWoodSpd, () => { let take = Math.min(zoneWood.count, tWoodCar - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') moveBot(t, counterLog.x + (counterLog.width/3)*2.5, counterLog.y + counterLog.height/2, tWoodSpd, () => { counterLog.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             transB.forEach(t => { if (t.state === 'idle') { if (t.carry > 0 && machines1.some(m => m.inLumb < 100)) t.state = 'to_dest'; else if (zoneWood.count > 0 && machines1.some(m => m.inLumb < 100)) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, tWoodSpd, () => { let take = Math.min(zoneWood.count, tWoodCar - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { let bestM = null, minV = Infinity; machines1.forEach(m => { if(m.inLumb < 100 && m.inLumb < minV) { minV = m.inLumb; bestM = m; }}); if (!bestM) { t.state = 'idle'; return; } moveBot(t, bestM.x + bestM.w + 30, bestM.y + bestM.h/2, tWoodSpd, () => { let drop = Math.min(t.carry, 100 - bestM.inLumb); bestM.inLumb += drop; t.carry -= drop; if (t.carry <= 0) t.state = 'idle'; }); } });
@@ -508,7 +512,6 @@
             transL.forEach(t => { if (t.state === 'idle') { if (zoneChair.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneChair.x + zoneChair.w/2, zoneChair.y + zoneChair.h/2, tAsmSpd, () => { let take = Math.min(zoneChair.count, tAsmCar - t.carry); zoneChair.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { let target = counterSet.chair < 40 ? counterSet : counterChair; moveBot(t, target.x + (target.width/3)*2.5, target.y + target.height/2, tAsmSpd, () => { if(target === counterSet) counterSet.chair += t.carry; else counterChair.count += t.carry; t.carry = 0; t.state = 'idle'; }); } });
             transM.forEach(t => { if (t.state === 'idle') { if (zoneTable.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneTable.x + zoneTable.w/2, zoneTable.y + zoneTable.h/2, tAsmSpd, () => { let take = Math.min(zoneTable.count, tAsmCar - t.carry); zoneTable.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { let target = counterSet.table < 10 ? counterSet : counterTable; moveBot(t, target.x + (target.width/3)*2.5, target.y + target.height/2, tAsmSpd, () => { if(target === counterSet) counterSet.table += t.carry; else counterTable.count += t.carry; t.carry = 0; t.state = 'idle'; }); } });
 
-            const distTo = (px, py, tx, ty) => Math.hypot(px - tx, py - ty);
             const interactRad = 80;
 
             if (distTo(player.x, player.y, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2) < interactRad && zoneWood.count > 0) { player.wood += zoneWood.count; zoneWood.count = 0; }
@@ -557,7 +560,6 @@
             if (upgrades.cashTable.bought) { cashTimerTable -= dt; if (cashTimerTable <= 0) { processTransaction(counterTable, custTable, pTable); cashTimerTable = 0.5; } }
             if (upgrades.cashSet.bought) { cashTimerSet -= dt; if (cashTimerSet <= 0) { processSetTransaction(counterSet, custSet); cashTimerSet = 0.5; } }
 
-            const inZone = (px, py, box) => Math.abs(px - (box.x + box.w/2)) < box.w/2 && Math.abs(py - (box.y + box.h/2)) < box.h/2;
             let standingOnUpgrade = null;
             Object.values(upgrades).forEach(up => { if (up.cd > 0) up.cd -= dt; if (up.hidden && up.hidden()) return; if (inZone(player.x, player.y, up.box) && up.req() && up.cd <= 0) standingOnUpgrade = up; });
             if (standingOnUpgrade && money >= standingOnUpgrade.cost()) { uiOkBtn.active = true; uiOkBtn.target = standingOnUpgrade; } else { uiOkBtn.active = false; uiOkBtn.target = null; }
@@ -682,24 +684,50 @@
             // 畫面上層 UI (不受相機影響)
             
             // 左上角面板按鈕
-            ctx.fillStyle = '#4682B4'; ctx.beginPath(); ctx.arc(HUD.statsBtn.x + HUD.statsBtn.r, HUD.statsBtn.y + HUD.statsBtn.r, HUD.statsBtn.r, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#FFF'; ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.fillText(HUD.statsBtn.icon, HUD.statsBtn.x + HUD.statsBtn.r, HUD.statsBtn.y + HUD.statsBtn.r + 7);
+            ctx.fillStyle = '#4682B4'; ctx.beginPath(); ctx.arc(HUD.statsBtn.x, HUD.statsBtn.y, HUD.statsBtn.r, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#FFF'; ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.fillText(HUD.statsBtn.icon, HUD.statsBtn.x, HUD.statsBtn.y + 7);
             
             // 資金與身上物品顯示
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.fillRect(70, 20, 160, 145); 
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.fillRect(70, 20, 140, 155); 
             ctx.fillStyle = '#FFD700'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left'; ctx.fillText(`$${formatMoney(money)}`, 80, 45);
-            ctx.font = '14px Arial'; 
-            ctx.fillStyle = '#CD853F'; ctx.fillText(`身上原木: ${player.wood}`, 80, 70); 
-            ctx.fillStyle = '#FFA500'; ctx.fillText(`身上木材: ${player.lumber}`, 80, 90); 
-            ctx.fillStyle = '#F5DEB3'; ctx.fillText(`身上木板: ${player.plank}`, 80, 110);
-            ctx.fillStyle = '#A52A2A'; ctx.fillText(`身上椅子: ${player.chair}`, 80, 130);
-            ctx.fillStyle = '#8B4513'; ctx.fillText(`身上桌子: ${player.table}`, 80, 150);
+            ctx.font = '16px Arial'; 
+            ctx.fillStyle = '#CD853F'; ctx.fillText(`🪵 :  ${player.wood}`, 80, 75); 
+            ctx.fillStyle = '#FFA500'; ctx.fillText(`🧱 :  ${player.lumber}`, 80, 95); 
+            ctx.fillStyle = '#F5DEB3'; ctx.fillText(`🛹 :  ${player.plank}`, 80, 115);
+            ctx.fillStyle = '#FF6347'; ctx.fillText(`🪑 :  ${player.chair}`, 80, 135);
+            ctx.fillStyle = '#A0522D'; ctx.fillText(`🗄️ :  ${player.table}`, 80, 155);
 
-            // 右下角傳送陣
-            teleports.forEach((tp) => {
-                ctx.fillStyle = tp.color; ctx.beginPath(); ctx.arc(tp.x, tp.y, tp.r, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#FFF'; ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.fillText(tp.icon, tp.x, tp.y + 7);
-                ctx.font = '12px Arial'; ctx.fillText(tp.label, tp.x, tp.y - 30);
+            // 右側垂直傳送陣 (含當前區域高亮)
+            let activeTpIndex = -1;
+            let minDist = Infinity;
+            teleports.forEach((tp, i) => {
+                let dist = Math.abs(player.x - tp.tx);
+                // 如果距離小於 500 且是目前最近的區域，則標記為使用中
+                if(dist < 500 && dist < minDist) { minDist = dist; activeTpIndex = i; }
+            });
+
+            teleports.forEach((tp, i) => {
+                let isActive = (i === activeTpIndex);
+                
+                // 畫圓形按鈕底色
+                ctx.fillStyle = isActive ? tp.color : 'rgba(50, 50, 50, 0.6)'; 
+                ctx.beginPath(); ctx.arc(tp.x, tp.y, tp.r, 0, Math.PI*2); ctx.fill();
+                
+                // 使用中加上外框高亮
+                if (isActive) {
+                    ctx.strokeStyle = '#FFF'; ctx.lineWidth = 2; ctx.stroke();
+                }
+
+                // 畫 Icon
+                ctx.fillStyle = isActive ? '#FFF' : '#CCC'; 
+                ctx.font = '22px Arial'; ctx.textAlign = 'center'; 
+                ctx.fillText(tp.icon, tp.x, tp.y + 8);
+                
+                // 畫文字標籤 (在按鈕左側)
+                ctx.font = '14px Arial'; 
+                ctx.fillStyle = isActive ? '#FFD700' : 'rgba(255, 255, 255, 0.5)';
+                ctx.textAlign = 'right'; 
+                ctx.fillText(tp.label, tp.x - tp.r - 8, tp.y + 5);
             });
             ctx.textAlign = 'left';
 
@@ -717,8 +745,8 @@
             }
             
             // 右上角清除存檔
-            ctx.fillStyle = '#CD5C5C'; ctx.beginPath(); ctx.arc(HUD.clearBtn.x + HUD.clearBtn.r, HUD.clearBtn.y + HUD.clearBtn.r, HUD.clearBtn.r, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#FFF'; ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.fillText(HUD.clearBtn.icon, HUD.clearBtn.x + HUD.clearBtn.r, HUD.clearBtn.y + HUD.clearBtn.r + 7); ctx.textAlign = 'left';
+            ctx.fillStyle = '#CD5C5C'; ctx.beginPath(); ctx.arc(HUD.clearBtn.x, HUD.clearBtn.y, HUD.clearBtn.r, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#FFF'; ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.fillText(HUD.clearBtn.icon, HUD.clearBtn.x, HUD.clearBtn.y + 7); ctx.textAlign = 'left';
             
             if (tutorialShowing) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
