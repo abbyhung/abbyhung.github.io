@@ -685,9 +685,15 @@
             ctx.fillStyle = '#4682B4'; ctx.beginPath(); ctx.arc(HUD.statsBtn.x + HUD.statsBtn.r, HUD.statsBtn.y + HUD.statsBtn.r, HUD.statsBtn.r, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#FFF'; ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.fillText(HUD.statsBtn.icon, HUD.statsBtn.x + HUD.statsBtn.r, HUD.statsBtn.y + HUD.statsBtn.r + 7);
             
-            // 資金顯示
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.fillRect(70, 20, 200, 40); 
-            ctx.fillStyle = '#FFD700'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left'; ctx.fillText(`$${formatMoney(money)}`, 80, 48);
+            // 資金與身上物品顯示
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.fillRect(70, 20, 160, 145); 
+            ctx.fillStyle = '#FFD700'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'left'; ctx.fillText(`$${formatMoney(money)}`, 80, 45);
+            ctx.font = '14px Arial'; 
+            ctx.fillStyle = '#CD853F'; ctx.fillText(`身上原木: ${player.wood}`, 80, 70); 
+            ctx.fillStyle = '#FFA500'; ctx.fillText(`身上木材: ${player.lumber}`, 80, 90); 
+            ctx.fillStyle = '#F5DEB3'; ctx.fillText(`身上木板: ${player.plank}`, 80, 110);
+            ctx.fillStyle = '#A52A2A'; ctx.fillText(`身上椅子: ${player.chair}`, 80, 130);
+            ctx.fillStyle = '#8B4513'; ctx.fillText(`身上桌子: ${player.table}`, 80, 150);
 
             // 右下角傳送陣
             teleports.forEach((tp) => {
