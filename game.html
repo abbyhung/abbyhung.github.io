@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨 - 終極帝國與傢俱產線</title>
+    <title>伐木大亨 - 終極帝國修復版</title>
     <style>
         body { margin: 0; padding: 0; overflow: hidden; background-color: #C7EDCC; touch-action: none; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; user-select: none; -webkit-user-select: none; }
         canvas { display: block; }
@@ -14,12 +14,9 @@
     <script>
         console.log(`
 =========================================
-[伐木大亨] 版本更新日誌 (v14.0)
-1. 產線: 新增椅子 (10材4板) 與 桌子 (4材10板) 組裝機。
-2. 販賣: 新增椅子、桌子、餐桌組 (4椅1桌) 專屬收銀台。
-3. 系統: 新增右下方「快速傳送陣」，老闆瞬間移動！
-4. 系統: 新增左上方「資料面板」，即時掌控營收與庫存。
-5. 平衡: 砍樹工人上限增至 15，滿足後期龐大物料需求。
+[伐木大亨] 版本更新日誌 (v14.1)
+1. 修復: 修正變數名稱縮寫導致的 Uncaught ReferenceError (spawnTimerLog is not defined) 崩潰問題。
+2. 系統: 6 大產線客流系統與自動結帳計時器已重新獨立，運作完全正常。
 =========================================
         `);
 
@@ -51,7 +48,7 @@
 
         function resize() { 
             canvas.width = window.innerWidth; canvas.height = window.innerHeight; 
-            joystick.x = 100; joystick.y = canvas.height - 100; // 移到左下角避免擋傳送陣
+            joystick.x = 100; joystick.y = canvas.height - 100; 
             uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; uiOkBtn.y = 50; 
             clearSaveBtn.x = canvas.width - 120; 
         }
@@ -81,9 +78,10 @@
         const transA = [], transB = [], transC = [], transD = [], transE = [], transF = [], transG = [];
         const transH = [], transI = [], transJ = [], transK = [], transL = [], transM = [];
         
-        let cT_Log=0, cT_Lumb=0, cT_Plank=0, cT_Chair=0, cT_Table=0, cT_Set=0; 
+        // 【修復核心】：嚴格定義計時器與陣列，避免未定義錯誤
+        let cashTimerLog=0, cashTimerLumber=0, cashTimerPlank=0, cashTimerChair=0, cashTimerTable=0, cashTimerSet=0;
+        let spawnTimerLog=0, spawnTimerLumber=0, spawnTimerPlank=0, spawnTimerChair=0, spawnTimerTable=0, spawnTimerSet=0;
         const custLog=[], custLumb=[], custPlank=[], custChair=[], custTable=[], custSet=[];
-        let sT_Log=0, sT_Lumb=0, sT_Plank=0, sT_Chair=0, sT_Table=0, sT_Set=0;
         
         const trees = []; const treeSize = 40; 
         const TREE_STAGES = [ { radius: 0, trunkH: 10, color: '#DEB887' }, { radius: 10, trunkH: 15, color: '#9ACD32' }, { radius: 15, trunkH: 20, color: '#32CD32' }, { radius: 20, trunkH: 25, color: '#228B22' }, { radius: 25, trunkH: 30, color: '#008000' }, { radius: 30, trunkH: 35, color: '#006400' }, { radius: 35, trunkH: 40, color: '#004d00' } ];
@@ -141,7 +139,7 @@
             asmSpeed: { box: {x: 1300, y: 800, w: 140, h: 40}, title: '組裝運速 (+50)', costVal: 5000, level: 1, cd: 0, hidden: function() { return upgrades.m3Buy.count===0 && upgrades.m4Buy.count===0; }, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); tAsmSpd += 50; } },
             asmCar: { box: {x: 1300, y: 850, w: 140, h: 40}, title: '組裝容量 (+1)', costVal: 8000, level: 1, cd: 0, hidden: function() { return upgrades.m3Buy.count===0 && upgrades.m4Buy.count===0; }, req: function() { return this.level < 6; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 2.0); tAsmCar += 1; } },
 
-            // 收銀台 (簡化高度)
+            // 收銀台
             cashLog: { box: {x: counterLog.x + 250, y: counterLog.y + 5, w: 120, h: 30}, title: '自動收銀', costVal: 200, bought: false, cd: 0, req: function() { return !this.bought; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `$${this.costVal}` : '已配置'; }, action: function() { this.bought = true; } },
             priceLog: { box: {x: counterLog.x + 250, y: counterLog.y + 40, w: 120, h: 30}, title: '漲價(+$2)', costVal: 300, level: 1, cd: 0, req: function() { return true; }, cost: function() { return this.costVal; }, desc: function() { return `升:$${this.costVal}`; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.5); pLog += 2; } },
             markLog: { box: {x: counterLog.x + 250, y: counterLog.y + 75, w: 120, h: 30}, title: '客流升級', costVal: 400, level: 1, cd: 0, req: function() { return this.level < 8; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `升:$${this.costVal}` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); gLogSpawn = Math.max(0.6, gLogSpawn - 0.2); gLogDem += 5; } },
@@ -202,7 +200,15 @@
                 const data = JSON.parse(saved);
                 if (data.version !== 14) return false; 
                 tutorialStep = data.tutorialStep || 0; money = data.money || 0;
-                if (data.globals) Object.assign(window, data.globals); // Hacky but works for global primitives if matched
+                if (data.globals) {
+                    tWoodSpd=data.globals.tWoodSpd; tWoodCar=data.globals.tWoodCar; tLumbSpd=data.globals.tLumbSpd; tLumbCar=data.globals.tLumbCar;
+                    tPlankSpd=data.globals.tPlankSpd; tPlankCar=data.globals.tPlankCar; tAsmSpd=data.globals.tAsmSpd; tAsmCar=data.globals.tAsmCar;
+                    gChopSpeed=data.globals.gChopSpeed; gChopCarry=data.globals.gChopCarry; gChopTime=data.globals.gChopTime;
+                    pLog=data.globals.pLog; pLumb=data.globals.pLumb; pPlank=data.globals.pPlank; pChair=data.globals.pChair; pTable=data.globals.pTable; pSet=data.globals.pSet;
+                    gLogSpawn=data.globals.gLogSpawn; gLogDem=data.globals.gLogDem; gLumbSpawn=data.globals.gLumbSpawn; gLumbDem=data.globals.gLumbDem;
+                    gPlankSpawn=data.globals.gPlankSpawn; gPlankDem=data.globals.gPlankDem; gChairSpawn=data.globals.gChairSpawn; gChairDem=data.globals.gChairDem;
+                    gTableSpawn=data.globals.gTableSpawn; gTableDem=data.globals.gTableDem; gSetSpawn=data.globals.gSetSpawn; gSetDem=data.globals.gSetDem;
+                }
                 Object.assign(player, data.player);
                 Object.assign(counterLog, data.counterLog); Object.assign(counterLumber, data.counterLumber); Object.assign(counterPlank, data.counterPlank);
                 Object.assign(counterChair, data.counterChair); Object.assign(counterTable, data.counterTable); Object.assign(counterSet, data.counterSet);
@@ -314,7 +320,6 @@
         function update(dt) {
             if (tutorialShowing) return;
 
-            // 統計營收
             statTimer -= dt;
             if (statTimer <= 0) {
                 moneyHistory.push(money);
@@ -396,12 +401,10 @@
                 if (m.inLumb > 0 && m.outCount <= 150 - (blades * 3) && m.timer <= 0) { m.processAmt = Math.min(m.inLumb, blades); m.inLumb -= m.processAmt; m.timer = upgrades.m2Speed.maxTime; }
                 if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) { m.outCount += (m.processAmt * 3); m.processAmt = 0; } }
             });
-            // Machine 3 (Chair): 10 Lumb + 4 Plank -> 1 Chair
             machines3.forEach(m => {
                 if (m.inLumb >= 10 && m.inPlank >= 4 && m.outCount < 10 && m.timer <= 0) { m.inLumb -= 10; m.inPlank -= 4; m.timer = 2.0; }
                 if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) m.outCount++; }
             });
-            // Machine 4 (Table): 4 Lumb + 10 Plank -> 1 Table
             machines4.forEach(m => {
                 if (m.inLumb >= 4 && m.inPlank >= 10 && m.outCount < 10 && m.timer <= 0) { m.inLumb -= 4; m.inPlank -= 10; m.timer = 3.0; }
                 if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) m.outCount++; }
@@ -417,7 +420,6 @@
             transF.forEach(t => { if (t.state === 'idle') { if (t.carry > 0) t.state = 'to_zone'; else if (machines2.some(m => m.outCount > 0)) t.state = 'to_dest'; } else if (t.state === 'to_dest') { let bestM = null, maxV = 0; machines2.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }}); if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; } moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, tPlankSpd, () => { let cap = tPlankCar * 3; let take = Math.min(bestM.outCount, cap - t.carry); bestM.outCount -= take; t.carry += take; if (t.carry >= cap) t.state = 'to_zone'; else { let nextM = null, nxMax = 0; machines2.forEach(m => { if(m.outCount > 0 && m.outCount > nxMax) { nxMax = m.outCount; nextM = m; }}); t.state = nextM ? 'to_dest' : 'to_zone'; } }); } else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, tPlankSpd, () => { zonePlank.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             transG.forEach(t => { if (t.state === 'idle') { if (zonePlank.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, tPlankSpd, () => { let take = Math.min(zonePlank.count, tPlankCar * 3 - t.carry); zonePlank.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') moveBot(t, counterPlank.x + (counterPlank.width/3)*2.5, counterPlank.y + counterPlank.height/2, tPlankSpd, () => { counterPlank.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
 
-            // H: Lumber -> Mach3/4
             transH.forEach(t => { 
                 let m34 = [...machines3, ...machines4];
                 if (t.state === 'idle') { if (t.carry > 0 && m34.some(m => m.inLumb < 50)) t.state = 'to_dest'; else if (zoneLumber.count > 0 && m34.some(m => m.inLumb < 50)) t.state = 'to_zone'; } 
@@ -428,7 +430,6 @@
                     moveBot(t, bestM.x + bestM.w + 30, bestM.y + bestM.h/4, tLumbSpd, () => { let drop = Math.min(t.carry, 50 - bestM.inLumb); bestM.inLumb += drop; t.carry -= drop; if (t.carry <= 0) t.state = 'idle'; }); 
                 } 
             });
-            // I: Plank -> Mach3/4
             transI.forEach(t => { 
                 let m34 = [...machines3, ...machines4];
                 if (t.state === 'idle') { if (t.carry > 0 && m34.some(m => m.inPlank < 50)) t.state = 'to_dest'; else if (zonePlank.count > 0 && m34.some(m => m.inPlank < 50)) t.state = 'to_zone'; } 
@@ -439,11 +440,9 @@
                     moveBot(t, bestM.x + bestM.w + 30, bestM.y + (bestM.h/4)*3, tPlankSpd, () => { let drop = Math.min(t.carry, 50 - bestM.inPlank); bestM.inPlank += drop; t.carry -= drop; if (t.carry <= 0) t.state = 'idle'; }); 
                 } 
             });
-            // J & K: Asm -> Zones
             transJ.forEach(t => { if (t.state === 'idle') { if (t.carry > 0) t.state = 'to_zone'; else if (machines3.some(m => m.outCount > 0)) t.state = 'to_dest'; } else if (t.state === 'to_dest') { let bestM = null, maxV = 0; machines3.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }}); if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; } moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, tAsmSpd, () => { let take = Math.min(bestM.outCount, tAsmCar - t.carry); bestM.outCount -= take; t.carry += take; t.state = t.carry >= tAsmCar ? 'to_zone' : 'idle'; }); } else if (t.state === 'to_zone') moveBot(t, zoneChair.x + zoneChair.w/2, zoneChair.y + zoneChair.h/2, tAsmSpd, () => { zoneChair.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             transK.forEach(t => { if (t.state === 'idle') { if (t.carry > 0) t.state = 'to_zone'; else if (machines4.some(m => m.outCount > 0)) t.state = 'to_dest'; } else if (t.state === 'to_dest') { let bestM = null, maxV = 0; machines4.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }}); if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; } moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, tAsmSpd, () => { let take = Math.min(bestM.outCount, tAsmCar - t.carry); bestM.outCount -= take; t.carry += take; t.state = t.carry >= tAsmCar ? 'to_zone' : 'idle'; }); } else if (t.state === 'to_zone') moveBot(t, zoneTable.x + zoneTable.w/2, zoneTable.y + zoneTable.h/2, tAsmSpd, () => { zoneTable.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             
-            // L & M: Zones -> Counters
             transL.forEach(t => { 
                 if (t.state === 'idle') { if (zoneChair.count > 0) t.state = 'to_zone'; } 
                 else if (t.state === 'to_zone') moveBot(t, zoneChair.x + zoneChair.w/2, zoneChair.y + zoneChair.h/2, tAsmSpd, () => { let take = Math.min(zoneChair.count, tAsmCar - t.carry); zoneChair.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); 
@@ -504,7 +503,6 @@
             if (upgrades.m3Buy.count > 0) checkCounter(counterChair, 'chair', custChair, upgrades.cashChair, pChair);
             if (upgrades.m4Buy.count > 0) checkCounter(counterTable, 'table', custTable, upgrades.cashTable, pTable);
 
-            // Set Counter Check
             if (upgrades.m3Buy.count > 0 && upgrades.m4Buy.count > 0) {
                 const zW = counterSet.width/3; let cY = counterSet.y + counterSet.height/2;
                 if(distTo(player.x, player.y, counterSet.x + zW*2.5, cY)<interactRad) { if(player.chair>0){counterSet.chair+=player.chair;player.chair=0;} if(player.table>0){counterSet.table+=player.table;player.table=0;} }
@@ -512,27 +510,27 @@
                 if(distTo(player.x, player.y, counterSet.x + zW*0.5, cY)<interactRad && counterSet.money>0){money+=counterSet.money;counterSet.money=0;}
             }
 
-            if (upgrades.cashLog.bought) { sT_Log -= dt; if (sT_Log <= 0) { processTransaction(counterLog, custLog, pLog); sT_Log = 0.5; } }
-            if (upgrades.cashLumb.bought) { sT_Lumb -= dt; if (sT_Lumb <= 0) { processTransaction(counterLumber, custLumb, pLumb); sT_Lumb = 0.5; } }
-            if (upgrades.cashPlank.bought) { sT_Plank -= dt; if (sT_Plank <= 0) { processTransaction(counterPlank, custPlank, pPlank); sT_Plank = 0.5; } }
-            if (upgrades.cashChair.bought) { sT_Chair -= dt; if (sT_Chair <= 0) { processTransaction(counterChair, custChair, pChair); sT_Chair = 0.5; } }
-            if (upgrades.cashTable.bought) { sT_Table -= dt; if (sT_Table <= 0) { processTransaction(counterTable, custTable, pTable); sT_Table = 0.5; } }
-            if (upgrades.cashSet.bought) { sT_Set -= dt; if (sT_Set <= 0) { processSetTransaction(counterSet, custSet); sT_Set = 0.5; } }
+            if (upgrades.cashLog.bought) { cashTimerLog -= dt; if (cashTimerLog <= 0) { processTransaction(counterLog, custLog, pLog); cashTimerLog = 0.5; } }
+            if (upgrades.cashLumb.bought) { cashTimerLumber -= dt; if (cashTimerLumber <= 0) { processTransaction(counterLumber, custLumb, pLumb); cashTimerLumber = 0.5; } }
+            if (upgrades.cashPlank.bought) { cashTimerPlank -= dt; if (cashTimerPlank <= 0) { processTransaction(counterPlank, custPlank, pPlank); cashTimerPlank = 0.5; } }
+            if (upgrades.cashChair.bought) { cashTimerChair -= dt; if (cashTimerChair <= 0) { processTransaction(counterChair, custChair, pChair); cashTimerChair = 0.5; } }
+            if (upgrades.cashTable.bought) { cashTimerTable -= dt; if (cashTimerTable <= 0) { processTransaction(counterTable, custTable, pTable); cashTimerTable = 0.5; } }
+            if (upgrades.cashSet.bought) { cashTimerSet -= dt; if (cashTimerSet <= 0) { processSetTransaction(counterSet, custSet); cashTimerSet = 0.5; } }
 
             let standingOnUpgrade = null;
             Object.values(upgrades).forEach(up => { if (up.cd > 0) up.cd -= dt; if (up.hidden && up.hidden()) return; if (inZone(player.x, player.y, up.box) && up.req() && up.cd <= 0) standingOnUpgrade = up; });
             if (standingOnUpgrade && money >= standingOnUpgrade.cost()) { uiOkBtn.active = true; uiOkBtn.target = standingOnUpgrade; } else { uiOkBtn.active = false; uiOkBtn.target = null; }
             
+            // 【修復核心】：修正這裡的產生計時器變數呼叫
             spawnTimerLog -= dt; if (spawnTimerLog <= 0) { if (custLog.length < 10) custLog.push({ need: Math.floor(Math.random() * 7) + 2 + gLogDem }); spawnTimerLog = gLogSpawn; }
             if (upgrades.m1Buy.count > 0) { spawnTimerLumber -= dt; if (spawnTimerLumber <= 0) { if (custLumb.length < 10) custLumb.push({ need: Math.floor(Math.random() * 5) + 2 + gLumbDem }); spawnTimerLumber = gLumbSpawn; } }
             if (upgrades.m2Buy.count > 0) { spawnTimerPlank -= dt; if (spawnTimerPlank <= 0) { if (custPlank.length < 10) custPlank.push({ need: Math.floor(Math.random() * 8) + 3 + gPlankDem }); spawnTimerPlank = gPlankSpawn; } }
-            if (upgrades.m3Buy.count > 0) { spawnTimerChair -= dt; if (spawnTimerChair <= 0) { if (custChair.length < 10) custChair.push({ need: Math.floor(Math.random() * 3) + 1 + gChairDem }); spawnTimerChair = gChairSpawn; } } else spawnTimerChair = 0;
-            if (upgrades.m4Buy.count > 0) { spawnTimerTable -= dt; if (spawnTimerTable <= 0) { if (custTable.length < 10) custTable.push({ need: Math.floor(Math.random() * 2) + 1 + gTableDem }); spawnTimerTable = gTableSpawn; } } else spawnTimerTable = 0;
-            if (upgrades.m3Buy.count > 0 && upgrades.m4Buy.count > 0) { spawnTimerSet -= dt; if (spawnTimerSet <= 0) { if (custSet.length < 5) custSet.push({ need: Math.floor(Math.random() * 2) + 1 + gSetDem }); spawnTimerSet = gSetSpawn; } } else spawnTimerSet = 0;
+            if (upgrades.m3Buy.count > 0) { spawnTimerChair -= dt; if (spawnTimerChair <= 0) { if (custChair.length < 10) custChair.push({ need: Math.floor(Math.random() * 3) + 1 + gChairDem }); spawnTimerChair = gChairSpawn; } }
+            if (upgrades.m4Buy.count > 0) { spawnTimerTable -= dt; if (spawnTimerTable <= 0) { if (custTable.length < 10) custTable.push({ need: Math.floor(Math.random() * 2) + 1 + gTableDem }); spawnTimerTable = gTableSpawn; } }
+            if (upgrades.m3Buy.count > 0 && upgrades.m4Buy.count > 0) { spawnTimerSet -= dt; if (spawnTimerSet <= 0) { if (custSet.length < 5) custSet.push({ need: Math.floor(Math.random() * 2) + 1 + gSetDem }); spawnTimerSet = gSetSpawn; } }
 
             saveTimer -= dt; if (saveTimer <= 0) { saveGame(); saveTimer = 3.0; }
         }
-        let spawnTimerChair=0, spawnTimerTable=0, spawnTimerSet=0;
 
         function drawCounter(counter, title, itemLabel, cashierObj, currentPrice) { 
             const zW = counter.width / 3; 
