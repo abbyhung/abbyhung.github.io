@@ -127,10 +127,9 @@
     <script>
         console.log(`
 =========================================
-[伐木大亨] 版本更新日誌 (v18.2)
-1. 終極防禦: 在主迴圈加入 try-catch，徹底防止任何不可預期錯誤導致的畫面凍結。
-2. 自動校正: 讀檔時若發現玩家座標因為舊存檔變為 NaN，會自動校正回起始點。
-3. 安全點擊: 為 isInsideUI 加上物件存在檢查，杜絕誤觸崩潰。
+[伐木大亨] 版本更新日誌 (v18.4)
+1. 排版修復: 修正讀檔時覆蓋掉新版座標，導致按鈕與排隊人潮嚴重重疊的 Bug。
+2. 點擊修復: 購買按鈕現在會即時對應視窗縮放大小，確保判定精準，不再點空。
 =========================================
         `);
 
@@ -139,14 +138,14 @@
         const WORLD_WIDTH = 4600; const WORLD_HEIGHT = 2000;
         let camera = { x: 0, y: 0 };
         
-        // 【核心安全工具】全域距離與區域判定，改用傳統 function 確保提升(Hoisting)絕對安全
-        function distTo(px, py, tx, ty) { return Math.hypot(px - tx, py - ty); }
-        function inZone(px, py, box) { return Math.abs(px - (box.x + box.w/2)) < box.w/2 && Math.abs(py - (box.y + box.h/2)) < box.h/2; }
-        function isInsideUI(x, y, ui) { 
+        // 全域距離與區域判定工具
+        const distTo = (px, py, tx, ty) => Math.hypot(px - tx, py - ty);
+        const inZone = (px, py, box) => Math.abs(px - (box.x + box.w/2)) < box.w/2 && Math.abs(py - (box.y + box.h/2)) < box.h/2;
+        const isInsideUI = (x, y, ui) => { 
             if(!ui) return false;
             if(ui.r) return Math.hypot(x - ui.x, y - ui.y) < ui.r * 1.5; 
             return x >= ui.x && x <= ui.x + ui.w && y >= ui.y && y <= ui.y + ui.h; 
-        }
+        };
         
         const joystick = { x: 0, y: 0, radius: 50, knobX: 0, knobY: 0, active: false, angle: 0, pull: 0, touchId: null };
         const uiOkBtn = { x: 0, y: 0, w: 200, h: 50, active: false, target: null };
@@ -204,7 +203,10 @@
         function resize() { 
             canvas.width = window.innerWidth; canvas.height = window.innerHeight; 
             joystick.x = canvas.width - 90; joystick.y = canvas.height - 90; 
-            uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; uiOkBtn.y = 20; 
+            
+            // 強制重算確認按鈕，杜絕縮放跑位
+            uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; 
+            uiOkBtn.y = 20; 
             
             let gap = 15; let totalH = teleports.length * (teleports[0].r * 2) + (teleports.length - 1) * gap;
             let startY = canvas.height / 2 - totalH / 2;
@@ -221,6 +223,7 @@
         
         const machines1 = []; const machines2 = []; const machines3 = []; const machines4 = [];
 
+        // 收銀台 (固定間距避免重疊，Y軸間距 190)
         const counterSet = { x: 150, y: 150, width: 240, height: 60, chair: 0, table: 0, money: 0 };
         const counterTable = { x: 150, y: 340, width: 240, height: 60, count: 0, money: 0 };
         const counterChair = { x: 150, y: 530, width: 240, height: 60, count: 0, money: 0 };
@@ -314,7 +317,19 @@
             upgrades['mark' + cl.id] = { box: {x: cx + 162, y: cy, w: 78, h: 35}, title: '客流升級', costVal: cl.mCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return this.level < 8;}, cost: function(){return this.costVal;}, desc: function(){return this.req()?`升:$${formatMoney(this.costVal)}`:'滿等';}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.8); rates[cl.id+'Spawn'] = Math.max(0.5, rates[cl.id+'Spawn'] - 0.2); rates[cl.id+'Dem'] += cl.mDem;} };
         });
 
-        // 建立安全渲染防護網
+        function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+            let lines = text.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                let chars = lines[i].split(''); let line = '';
+                for (let n = 0; n < chars.length; n++) {
+                    let testLine = line + chars[n]; let metrics = ctx.measureText(testLine);
+                    if (metrics.width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = chars[n]; y += lineHeight; } else { line = testLine; }
+                }
+                ctx.fillText(line, x, y); y += lineHeight;
+            }
+        }
+
+        // 【防禦機制】安全寫入 HTML 元素，避免報錯
         function updateStatsDOM() {
             if (!isStatsOpen) return;
             let rpm = moneyHistory.length > 1 ? Math.floor((moneyHistory[moneyHistory.length-1] - moneyHistory[0]) * (60 / moneyHistory.length)) : 0;
@@ -417,17 +432,22 @@
                     if (data.globals.rates) Object.assign(rates, data.globals.rates);
                 }
                 
+                // 【修復】絕對不讀取舊的 x,y 座標，只讀取內部變數
                 if (data.player) {
-                    Object.assign(player, data.player);
-                    // 【防崩潰】保護玩家座標不為 NaN
-                    player.x = Number(player.x) || counterLog.x + 120;
-                    player.y = Number(player.y) || counterLog.y - 100;
+                    player.wood = data.player.wood || 0; player.lumber = data.player.lumber || 0; player.plank = data.player.plank || 0;
+                    player.chair = data.player.chair || 0; player.table = data.player.table || 0; player.speed = data.player.speed || 350;
+                    player.x = Number(data.player.x) || counterLog.x + 120;
+                    player.y = Number(data.player.y) || counterLog.y - 100;
                 }
 
-                Object.assign(counterLog, data.counterLog); Object.assign(counterLumber, data.counterLumber); Object.assign(counterPlank, data.counterPlank);
-                Object.assign(counterChair, data.counterChair); Object.assign(counterTable, data.counterTable); Object.assign(counterSet, data.counterSet);
-                Object.assign(zoneWood, data.zoneWood); Object.assign(zoneLumber, data.zoneLumber); Object.assign(zonePlank, data.zonePlank);
-                Object.assign(zoneChair, data.zoneChair); Object.assign(zoneTable, data.zoneTable);
+                const loadCounter = (target, source) => { if(source) { if(source.count!==undefined) target.count=source.count; if(source.money!==undefined) target.money=source.money; if(source.chair!==undefined) target.chair=source.chair; if(source.table!==undefined) target.table=source.table; } };
+                loadCounter(counterLog, data.counterLog); loadCounter(counterLumber, data.counterLumber); loadCounter(counterPlank, data.counterPlank);
+                loadCounter(counterChair, data.counterChair); loadCounter(counterTable, data.counterTable); loadCounter(counterSet, data.counterSet);
+
+                const loadZone = (target, source) => { if(source && source.count!==undefined) target.count=source.count; };
+                loadZone(zoneWood, data.zoneWood); loadZone(zoneLumber, data.zoneLumber); loadZone(zonePlank, data.zonePlank);
+                loadZone(zoneChair, data.zoneChair); loadZone(zoneTable, data.zoneTable);
+                
                 forestCols = data.forestCols || 5; forestRows = data.forestRows || 5;
                 firstInteractionTime = data.firstInteractionTime; lastInteractionTime = data.lastInteractionTime;
                 for(let key in data.upgrades) if (upgrades[key]) Object.assign(upgrades[key], data.upgrades[key]);
@@ -474,12 +494,24 @@
             recordInteraction();
             if (tutorialShowing) { tutorialShowing = false; return; }
             
-            if (isInsideUI(clientX, clientY, HUD.clearBtn)) { if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) { localStorage.removeItem('lumberjack_save_v18'); location.reload(); } return; }
+            if (isInsideUI(clientX, clientY, HUD.clearBtn)) { 
+                if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) { 
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.includes('lumberjack_save')) localStorage.removeItem(key);
+                    });
+                    location.reload(); 
+                } 
+                return; 
+            }
             if (isInsideUI(clientX, clientY, HUD.statsBtn)) { toggleStats(); return; }
             
             let tpClicked = false;
             teleports.forEach((tp) => { if (isInsideUI(clientX, clientY, tp)) { player.x = tp.tx; player.y = tp.ty; tpClicked = true; } });
             if(tpClicked) return;
+
+            // 【防跑位】點擊時再次動態確保按鈕位置正確
+            uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; 
+            uiOkBtn.y = 20; 
 
             if (uiOkBtn.active && isInsideUI(clientX, clientY, uiOkBtn)) { 
                 if (money >= uiOkBtn.target.cost()) { 
@@ -523,7 +555,6 @@
             statTimer -= dt;
             if (statTimer <= 0) { moneyHistory.push(money); if(moneyHistory.length > 60) moneyHistory.shift(); statTimer = 1.0; updateStatsDOM(); }
 
-            // 【修復】完整補回之前被不小心刪減的新手教學流程
             if (tutorialStep === 0) { 
                 triggerTutorial("【歡迎來到伐木大亨】\n請使用右下角虛擬搖桿，或鍵盤 WASD 移動。\n\n👉 第一步：前往右方森林，靠近樹木就會自動開始砍伐。"); 
                 tutorialStep = -1; 
@@ -540,7 +571,10 @@
                 tutorialStep = 3; 
                 triggerTutorial("【工業化開端】\n恭喜建立自動化雛形！\n👉 最終步：購買「去皮機」加工木材，一步步邁向自動化傢俱大廠！\n\n(提示: 左上角可開啟資料面板，左側有快速傳送陣)"); 
             }
-            if (tutorialStep === 3 && upgrades.m1Buy.count > 0) tutorialStep = 4; 
+            if (tutorialStep === 3 && upgrades.m1Buy.count > 0) {
+                tutorialStep = 4;
+                triggerTutorial("【正式營業】\n你已經學會所有基礎了！\n接下來請自由擴建產線，打造你的木業帝國吧！");
+            } 
 
             if (joystick.active) { player.vx = Math.cos(joystick.angle) * player.speed * joystick.pull; player.vy = Math.sin(joystick.angle) * player.speed * joystick.pull; } 
             else {
@@ -710,13 +744,14 @@
         function drawCustomers(counter, customersArr) { 
             customersArr.forEach((c, i) => { 
                 if (i > 4) return; 
-                let cx = counter.x + (counter.width/3) * 1.5 + (i * 45), cy = counter.y + 130; 
+                // 【排版調整】將客人位置往下放，避開升級按鈕
+                let cx = counter.x + (counter.width/3) * 1.5 + (i * 45), cy = counter.y + 120; 
                 ctx.fillStyle = '#FF6347'; ctx.beginPath(); ctx.arc(cx, cy, 18, 0, Math.PI * 2); ctx.fill(); 
                 ctx.fillStyle = '#333'; ctx.font = '14px Arial'; ctx.fillText(`需:${c.need}`, cx - 15, cy + 5); 
             }); 
             if (customersArr.length > 5) { 
                 ctx.fillStyle = '#333'; ctx.font = '14px Arial'; 
-                ctx.fillText(`+${customersArr.length - 5} 人排隊`, counter.x + (counter.width/3) * 1.5 + 225, counter.y + 135); 
+                ctx.fillText(`+${customersArr.length - 5} 人排隊`, counter.x + (counter.width/3) * 1.5 + 225, counter.y + 125); 
             } 
         }
         
@@ -730,18 +765,6 @@
         }
 
         function drawItemDots(x, y, count, color) { ctx.fillStyle = color; let dots = Math.min(count, 15); for (let i = 0; i < dots; i++) { let angle = i * (Math.PI * 2 / Math.max(dots, 1)); ctx.beginPath(); ctx.arc(x + Math.cos(angle)*8, y + Math.sin(angle)*8, 3, 0, Math.PI * 2); ctx.fill(); } }
-
-        function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-            let lines = text.split('\n');
-            for (let i = 0; i < lines.length; i++) {
-                let chars = lines[i].split(''); let line = '';
-                for (let n = 0; n < chars.length; n++) {
-                    let testLine = line + chars[n]; let metrics = ctx.measureText(testLine);
-                    if (metrics.width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = chars[n]; y += lineHeight; } else { line = testLine; }
-                }
-                ctx.fillText(line, x, y); y += lineHeight;
-            }
-        }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -885,7 +908,7 @@
                 console.error(err);
                 ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = 'red'; ctx.font = '20px Arial';
-                ctx.fillText('遊戲發生錯誤 (已暫停)，請點擊右上角 🗑️ 按鈕清除存檔重置。', 50, canvas.height/2);
+                ctx.fillText('遊戲發生錯誤 (已暫停)，請點擊左上角 🗑️ 按鈕清除存檔重置。', 50, canvas.height/2);
                 ctx.fillText(err.message, 50, canvas.height/2 + 30);
             }
             requestAnimationFrame(loop); 
