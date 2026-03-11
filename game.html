@@ -98,6 +98,7 @@
                     <p>工人: <span id="st-chop-count">0</span> /30 人</p>
                     <p>耗時: <span id="st-chop-time">0</span> 秒/次</p>
                     <p>產能: <span class="highlight" id="st-chop-rate">0</span> 根/秒</p>
+                    <p>重生: <span id="st-tree-respawn">60</span> 秒</p>
                 </div>
                 <div class="stat-card card-m1">
                     <h3>🏭 去皮區</h3>
@@ -127,19 +128,19 @@
     <script>
         console.log(`
 =========================================
-[伐木大亨] 版本更新日誌 (v19.2 抗崩潰防禦版)
-1. 終極防呆: 每次繪製強制重置 Canvas 矩陣，杜絕畫面凍結問題。
-2. 攔截錯誤: 增加全域 window.onerror，任何隱藏 Bug 皆會立刻顯示。
-3. 數值保護: 徹底過濾 NaN 座標，確保主角不會被黑洞吞噬。
+[伐木大亨] 版本更新日誌 (v19.3 營運節奏平衡版)
+1. 升級: 新增「樹木重生加速」升級按鈕 (60s -> 45s -> 30s -> 15s)。
+2. 平衡: 將初期的樹木重生時間回調至 60 秒，讓前期的物資管理更具挑戰性。
+3. 顯示: 資料面板同步顯示當前的樹木重生秒數。
 =========================================
         `);
 
-        // 全局錯誤攔截器，如果畫面卡住，這會顯示兇手是誰！
+        // 全局錯誤攔截器
         window.onerror = function(message, source, lineno, colno, error) {
             let canvas = document.getElementById('gameCanvas');
             if(canvas) {
                 let ctx = canvas.getContext('2d');
-                ctx.setTransform(1, 0, 0, 1, 0, 0); // 強制恢復預設視角
+                ctx.setTransform(1, 0, 0, 1, 0, 0); 
                 ctx.fillStyle = 'rgba(0,0,0,0.9)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = 'red'; ctx.font = '20px Arial'; ctx.textAlign = 'left';
                 ctx.fillText('🚨 系統崩潰攔截！請點擊左上角 🗑️ 按鈕清除存檔。', 20, 50);
@@ -153,10 +154,9 @@
         const WORLD_WIDTH = 4600; const WORLD_HEIGHT = 2000;
         let camera = { x: 0, y: 0 };
         
-        // 全域距離與區域判定工具
         const distTo = (px, py, tx, ty) => {
             let d = Math.hypot(px - tx, py - ty);
-            return isNaN(d) ? Infinity : d; // 終極防呆
+            return isNaN(d) ? Infinity : d;
         };
         const inZone = (px, py, box) => {
             if(isNaN(px) || isNaN(py) || !box) return false;
@@ -180,6 +180,7 @@
         let money = 0; let lastTime = performance.now();
         let tWoodSpd = 250, tWoodCar = 5; let tLumbSpd = 250, tLumbCar = 5; let tPlankSpd = 250, tPlankCar = 5; let tAsmSpd = 250, tAsmCar = 5;
         let gChopSpeed = 250, gChopCarry = 3, gChopTime = 6.0;    
+        let gTreeRespawnTime = 60.0; // 新增：樹木重生時間全局變數
         
         let prices = { Log: 5, Lumb: 15, Plank: 10, Chair: 300, Table: 400, Set: 2500 };
         let rates = { LogSpawn: 2.0, LogDem: 0, LumbSpawn: 3.0, LumbDem: 0, PlankSpawn: 2.5, PlankDem: 0, ChairSpawn: 4.0, ChairDem: 0, TableSpawn: 5.0, TableDem: 0, SetSpawn: 6.0, SetDem: 0 };
@@ -277,6 +278,8 @@
             chopBotCarry: { box: {x: forestStartX + 150, y: 0, w: 140, h: 40}, title: '幫手容量', costVal: 300, level: 1, cd: 0, req: function() { return this.level < 20; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `(+5) $${formatMoney(this.costVal)}` : '滿等'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 2.0); gChopCarry += 5; } },
             playerSpeed: { box: {x: forestStartX, y: 0, w: 140, h: 40}, title: '老闆跑速', costVal: 100, level: 1, cd: 0, req: function() { return this.level < 15; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `(+50) $${formatMoney(this.costVal)}` : '滿等'; }, action: function() { player.speed += 50; this.level++; this.costVal = Math.floor(this.costVal * 1.5); } },
             expand: { box: {x: forestStartX + 150, y: 0, w: 140, h: 40}, title: '擴建森林', costVal: 300, level: 0, max: 10, cd: 0, req: function() { return this.level < this.max; }, cost: function() { return this.costVal; }, desc: function() { return this.req() ? `(增建) $${formatMoney(this.costVal)}` : '已達極限'; }, action: function() { this.level++; this.costVal = Math.floor(this.costVal * 1.8); let oc = forestCols, or = forestRows; forestCols+=2; forestRows+=2; buildForest(forestCols, forestRows, oc, or); updateUIPositions(); } },
+            // 新增樹木重生速度升級
+            treeRespawn: { box: {x: forestStartX, y: 0, w: 140, h: 40}, title: '樹木重生加速', costs: [1000, 4000, 15000], count: 0, max: 3, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return this.costs[this.count]; }, desc: function() { return this.req() ? `(-15s) $${formatMoney(this.cost())}` : '已滿等'; }, action: function() { this.count++; gTreeRespawnTime -= 15.0; } },
             
             transA: { box: {x: 3700, y: 320, w: 140, h: 40}, title: '運A (賣原木)', baseCost: 50, count: 0, max: 8, cd: 0, req: function() { return this.count < this.max; }, cost: function() { return Math.floor(this.baseCost * Math.pow(2.2, this.count)); }, desc: function() { return this.req() ? `(${this.count}/8) $${formatMoney(this.cost())}` : '滿編'; }, action: function() { this.count++; transA.push({x: zoneWood.x + 60, y: zoneWood.y + 40, carry: 0, state: 'idle'}); } },
             transB: { box: {x: 3700, y: 370, w: 140, h: 40}, title: '運B (送去皮)', baseCost: 50, count: 0, max: 8, cd: 0, hidden: function() { return upgrades.m1Buy.count===0; }, req: function() { return this.count < this.max; }, cost: function() { return Math.floor(this.baseCost * Math.pow(2.2, this.count)); }, desc: function() { return this.req() ? `(${this.count}/8) $${formatMoney(this.cost())}` : '滿編'; }, action: function() { this.count++; transB.push({x: zoneWood.x + 60, y: zoneWood.y + 40, carry: 0, state: 'idle'}); } },
@@ -375,6 +378,7 @@
 
             setTxt('st-chop-count', upgrades.auto.count);
             setTxt('st-chop-time', gChopTime.toFixed(1));
+            setTxt('st-tree-respawn', gTreeRespawnTime.toFixed(0)); // 顯示樹木重生秒數
             
             setTxt('st-m1-count', machines1.length);
             setTxt('st-m1-spd', upgrades.m1Speed.maxTime.toFixed(1));
@@ -414,12 +418,13 @@
             upgrades.speed.box.y = bottomY + 30; upgrades.auto.box.y = bottomY + 30;
             upgrades.chopBotSpeed.box.y = bottomY + 80; upgrades.chopBotCarry.box.y = bottomY + 80;
             upgrades.playerSpeed.box.y = bottomY + 130; upgrades.expand.box.y = bottomY + 130;
+            upgrades.treeRespawn.box.y = bottomY + 180; // 新增樹木重生按鈕的 Y 軸排版
         }
 
         function saveGame() {
             const data = {
                 version: 19, tutorialStep, money,
-                globals: { tWoodSpd, tWoodCar, tLumbSpd, tLumbCar, tPlankSpd, tPlankCar, tAsmSpd, tAsmCar, gChopSpeed, gChopCarry, gChopTime, prices, rates },
+                globals: { tWoodSpd, tWoodCar, tLumbSpd, tLumbCar, tPlankSpd, tPlankCar, tAsmSpd, tAsmCar, gChopSpeed, gChopCarry, gChopTime, gTreeRespawnTime, prices, rates },
                 player, 
                 counterLog: { count: counterLog.count, money: counterLog.money },
                 counterLumber: { count: counterLumber.count, money: counterLumber.money },
@@ -454,6 +459,7 @@
                     tAsmSpd = data.globals.tAsmSpd || 250; tAsmCar = data.globals.tAsmCar || 5;
                     gChopSpeed = data.globals.gChopSpeed || 250; gChopCarry = data.globals.gChopCarry || 3;
                     gChopTime = data.globals.gChopTime || 6.0;
+                    gTreeRespawnTime = data.globals.gTreeRespawnTime || 60.0;
                     
                     if (data.globals.prices) Object.assign(prices, data.globals.prices);
                     if (data.globals.rates) Object.assign(rates, data.globals.rates);
@@ -476,7 +482,7 @@
                 
                 forestCols = data.forestCols || 5; forestRows = data.forestRows || 5;
                 firstInteractionTime = data.firstInteractionTime; lastInteractionTime = data.lastInteractionTime;
-                for(let key in data.upgrades) if (upgrades[key]) {
+                for(let key in data.upgrades) if (upgrades[key] && data.upgrades[key]) {
                     upgrades[key].level = data.upgrades[key].level || upgrades[key].level;
                     upgrades[key].count = data.upgrades[key].count || upgrades[key].count;
                     upgrades[key].costVal = data.upgrades[key].costVal || upgrades[key].costVal;
@@ -493,7 +499,16 @@
         let loadResult = loadGame();
         if (!loadResult) { forestCols = 5; forestRows = 5; tutorialStep = 0; }
         buildForest(forestCols, forestRows);
-        if (loadResult && loadResult.savedTreeData) { let st = loadResult.savedTreeData; for (let i = 0; i < Math.min(trees.length, st.length); i++) { trees[i].isCut = st[i].isCut; trees[i].respawnTimer = Math.min(15.0, st[i].respawnTimer); trees[i].currentStage = st[i].currentStage; } }
+        
+        // 修正讀取存檔時的樹木計時器，防呆超出當前重生上限
+        if (loadResult && loadResult.savedTreeData) { 
+            let st = loadResult.savedTreeData; 
+            for (let i = 0; i < Math.min(trees.length, st.length); i++) { 
+                trees[i].isCut = st[i].isCut; 
+                trees[i].respawnTimer = Math.min(gTreeRespawnTime, st[i].respawnTimer); 
+                trees[i].currentStage = st[i].currentStage; 
+            } 
+        }
         updateUIPositions();
         resize();
         
@@ -629,7 +644,8 @@
                     if (dist < player.radius + treeSize/2 + 10 && dist < minDistance) { minDistance = dist; closestTree = tree; }
                 } else if (tree.isCut) {
                     tree.respawnTimer -= dt;
-                    tree.currentStage = Math.max(0, Math.min(6, Math.floor((15.0 - tree.respawnTimer) / 2.5))); 
+                    // 【動態重生計算】根據當前的 gTreeRespawnTime 來精準繪製階段
+                    tree.currentStage = Math.max(0, Math.min(6, Math.floor(6 * (1 - tree.respawnTimer / gTreeRespawnTime)))); 
                     if (tree.respawnTimer <= 0) { tree.isCut = false; tree.isTargeted = false; tree.currentStage = 6; }
                 }
             });
@@ -638,7 +654,11 @@
                 if (choppingTree !== closestTree) { if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6; choppingTree = closestTree; player.chopTimer = gChopTime; }
                 player.chopTimer -= dt;
                 choppingTree.currentStage = Math.max(1, Math.min(6, Math.ceil((player.chopTimer / gChopTime) * 6)));
-                if (player.chopTimer <= 0) { choppingTree.isCut = true; choppingTree.currentStage = 0; choppingTree.respawnTimer = 15.0; player.wood += 3; choppingTree = null; }
+                if (player.chopTimer <= 0) { 
+                    choppingTree.isCut = true; choppingTree.currentStage = 0; 
+                    choppingTree.respawnTimer = gTreeRespawnTime; // 套用重生時間
+                    player.wood += 3; choppingTree = null; 
+                }
             } else { if (choppingTree && !choppingTree.isCut) choppingTree.currentStage = 6; choppingTree = null; }
 
             autoChoppers.forEach(bot => {
@@ -655,7 +675,8 @@
                     bot.chopTimer -= dt;
                     bot.targetTree.currentStage = Math.max(1, Math.min(6, Math.ceil((bot.chopTimer / gChopTime) * 6)));
                     if (bot.chopTimer <= 0) { 
-                        bot.targetTree.isCut = true; bot.targetTree.currentStage = 0; bot.targetTree.isTargeted = false; bot.targetTree.respawnTimer = 15.0; 
+                        bot.targetTree.isCut = true; bot.targetTree.currentStage = 0; bot.targetTree.isTargeted = false; 
+                        bot.targetTree.respawnTimer = gTreeRespawnTime; // 套用重生時間
                         bot.carry += 3; bot.targetTree = null; bot.state = (bot.carry < gChopCarry) ? 'idle' : 'to_zone'; 
                     }
                 } else if (bot.state === 'to_zone') {
@@ -670,27 +691,34 @@
             machines3.forEach(m => { if (m.inLumb >= 10 && m.inPlank >= 4 && m.outCount < 50 && m.timer <= 0) { m.inLumb -= 10; m.inPlank -= 4; m.timer = 2.0; } if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) m.outCount++; } });
             machines4.forEach(m => { if (m.inLumb >= 4 && m.inPlank >= 10 && m.outCount < 50 && m.timer <= 0) { m.inLumb -= 4; m.inPlank -= 10; m.timer = 3.0; } if (m.timer > 0) { m.timer -= dt; if (m.timer <= 0) m.outCount++; } });
 
+            let needWoodForM1 = machines1.length > 0 && machines1.some(m => m.inLumb < 150);
+            let needLumbForM2 = machines2.length > 0 && machines2.some(m => m.inLumb < 150);
+            let needLumbForM34 = (machines3.length > 0 || machines4.length > 0) && [...machines3, ...machines4].some(m => m.inLumb < 150);
+            let needPlankForM34 = (machines3.length > 0 || machines4.length > 0) && [...machines3, ...machines4].some(m => m.inPlank < 150);
+            let needChairForSet = (machines3.length > 0 && machines4.length > 0) && counterSet.chair < 40;
+            let needTableForSet = (machines3.length > 0 && machines4.length > 0) && counterSet.table < 10;
+
             const moveBot = (t, destX, destY, spd, onReach) => { let dist = distTo(t.x, t.y, destX, destY); if (dist < 5) onReach(); else { t.x += (destX - t.x)/dist * spd * dt; t.y += (destY - t.y)/dist * spd * dt; } };
             
-            transA.forEach(t => { if (t.state === 'idle') { if (zoneWood.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, tWoodSpd, () => { let take = Math.min(zoneWood.count, tWoodCar - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') moveBot(t, counterLog.x + (counterLog.width/3)*2.5, counterLog.y + counterLog.height/2, tWoodSpd, () => { counterLog.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
+            transA.forEach(t => { if (t.state === 'idle') { if (zoneWood.count > 0 && !needWoodForM1) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, tWoodSpd, () => { let take = Math.min(zoneWood.count, tWoodCar - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') moveBot(t, counterLog.x + (counterLog.width/3)*2.5, counterLog.y + counterLog.height/2, tWoodSpd, () => { counterLog.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             transB.forEach(t => { if (t.state === 'idle') { if (t.carry > 0 && machines1.some(m => m.inLumb < 200)) t.state = 'to_dest'; else if (zoneWood.count > 0 && machines1.some(m => m.inLumb < 200)) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneWood.x + zoneWood.w/2, zoneWood.y + zoneWood.h/2, tWoodSpd, () => { let take = Math.min(zoneWood.count, tWoodCar - t.carry); zoneWood.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { let bestM = null, minV = Infinity; machines1.forEach(m => { if(m.inLumb < 200 && m.inLumb < minV) { minV = m.inLumb; bestM = m; }}); if (!bestM) { t.state = 'idle'; return; } moveBot(t, bestM.x + bestM.w + 30, bestM.y + bestM.h/2, tWoodSpd, () => { let drop = Math.min(t.carry, 200 - bestM.inLumb); bestM.inLumb += drop; t.carry -= drop; if (t.carry <= 0) t.state = 'idle'; }); } });
             
             transC.forEach(t => { if (t.state === 'idle') { if (t.carry > 0) t.state = 'to_zone'; else if (machines1.some(m => m.outCount > 0)) t.state = 'to_dest'; } else if (t.state === 'to_dest') { let bestM = null, maxV = 0; machines1.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }}); if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; } moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, tLumbSpd, () => { let take = Math.min(bestM.outCount, tLumbCar - t.carry); bestM.outCount -= take; t.carry += take; if (t.carry >= tLumbCar) t.state = 'to_zone'; else { let nextM = null, nxMax = 0; machines1.forEach(m => { if(m.outCount > 0 && m.outCount > nxMax) { nxMax = m.outCount; nextM = m; }}); t.state = nextM ? 'to_dest' : 'to_zone'; } }); } else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, tLumbSpd, () => { zoneLumber.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             
-            transD.forEach(t => { if (t.state === 'idle') { if (zoneLumber.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, tLumbSpd, () => { let take = Math.min(zoneLumber.count, tLumbCar - t.carry); zoneLumber.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') moveBot(t, counterLumber.x + (counterLumber.width/3)*2.5, counterLumber.y + counterLumber.height/2, tLumbSpd, () => { counterLumber.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
+            transD.forEach(t => { if (t.state === 'idle') { if (zoneLumber.count > 0 && !needLumbForM2 && !needLumbForM34) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, tLumbSpd, () => { let take = Math.min(zoneLumber.count, tLumbCar - t.carry); zoneLumber.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') moveBot(t, counterLumber.x + (counterLumber.width/3)*2.5, counterLumber.y + counterLumber.height/2, tLumbSpd, () => { counterLumber.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             transE.forEach(t => { if (t.state === 'idle') { if (t.carry > 0 && machines2.some(m => m.inLumb < 200)) t.state = 'to_dest'; else if (zoneLumber.count > 0 && machines2.some(m => m.inLumb < 200)) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, tLumbSpd, () => { let take = Math.min(zoneLumber.count, tLumbCar - t.carry); zoneLumber.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { let bestM = null, minV = Infinity; machines2.forEach(m => { if(m.inLumb < 200 && m.inLumb < minV) { minV = m.inLumb; bestM = m; }}); if (!bestM) { t.state = 'idle'; return; } moveBot(t, bestM.x + bestM.w + 30, bestM.y + bestM.h/2, tLumbSpd, () => { let drop = Math.min(t.carry, 200 - bestM.inLumb); bestM.inLumb += drop; t.carry -= drop; if (t.carry <= 0) t.state = 'idle'; }); } });
             
             transF.forEach(t => { if (t.state === 'idle') { if (t.carry > 0) t.state = 'to_zone'; else if (machines2.some(m => m.outCount > 0)) t.state = 'to_dest'; } else if (t.state === 'to_dest') { let bestM = null, maxV = 0; machines2.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }}); if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; } moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, tPlankSpd, () => { let cap = tPlankCar * 3; let take = Math.min(bestM.outCount, cap - t.carry); bestM.outCount -= take; t.carry += take; if (t.carry >= cap) t.state = 'to_zone'; else { let nextM = null, nxMax = 0; machines2.forEach(m => { if(m.outCount > 0 && m.outCount > nxMax) { nxMax = m.outCount; nextM = m; }}); t.state = nextM ? 'to_dest' : 'to_zone'; } }); } else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, tPlankSpd, () => { zonePlank.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             
-            transG.forEach(t => { if (t.state === 'idle') { if (zonePlank.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, tPlankSpd, () => { let take = Math.min(zonePlank.count, tPlankCar * 3 - t.carry); zonePlank.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') moveBot(t, counterPlank.x + (counterPlank.width/3)*2.5, counterPlank.y + counterPlank.height/2, tPlankSpd, () => { counterPlank.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
+            transG.forEach(t => { if (t.state === 'idle') { if (zonePlank.count > 0 && !needPlankForM34) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, tPlankSpd, () => { let take = Math.min(zonePlank.count, tPlankCar * 3 - t.carry); zonePlank.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') moveBot(t, counterPlank.x + (counterPlank.width/3)*2.5, counterPlank.y + counterPlank.height/2, tPlankSpd, () => { counterPlank.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             
             transH.forEach(t => { let m34 = [...machines3, ...machines4]; if (t.state === 'idle') { if (t.carry > 0 && m34.some(m => m.inLumb < 200)) t.state = 'to_dest'; else if (zoneLumber.count > 0 && m34.some(m => m.inLumb < 200)) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneLumber.x + zoneLumber.w/2, zoneLumber.y + zoneLumber.h/2, tLumbSpd, () => { let take = Math.min(zoneLumber.count, tLumbCar - t.carry); zoneLumber.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { let bestM = null, minV = Infinity; m34.forEach(m => { if(m.inLumb < 200 && m.inLumb < minV) { minV = m.inLumb; bestM = m; }}); if (!bestM) { t.state = 'idle'; return; } moveBot(t, bestM.x + bestM.w + 30, bestM.y + bestM.h/4, tLumbSpd, () => { let drop = Math.min(t.carry, 200 - bestM.inLumb); bestM.inLumb += drop; t.carry -= drop; if (t.carry <= 0) t.state = 'idle'; }); } });
             transI.forEach(t => { let m34 = [...machines3, ...machines4]; if (t.state === 'idle') { if (t.carry > 0 && m34.some(m => m.inPlank < 200)) t.state = 'to_dest'; else if (zonePlank.count > 0 && m34.some(m => m.inPlank < 200)) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zonePlank.x + zonePlank.w/2, zonePlank.y + zonePlank.h/2, tPlankSpd, () => { let take = Math.min(zonePlank.count, tPlankCar*3 - t.carry); zonePlank.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { let bestM = null, minV = Infinity; m34.forEach(m => { if(m.inPlank < 200 && m.inPlank < minV) { minV = m.inPlank; bestM = m; }}); if (!bestM) { t.state = 'idle'; return; } moveBot(t, bestM.x + bestM.w + 30, bestM.y + (bestM.h/4)*3, tPlankSpd, () => { let drop = Math.min(t.carry, 200 - bestM.inPlank); bestM.inPlank += drop; t.carry -= drop; if (t.carry <= 0) t.state = 'idle'; }); } });
             transJ.forEach(t => { if (t.state === 'idle') { if (t.carry > 0) t.state = 'to_zone'; else if (machines3.some(m => m.outCount > 0)) t.state = 'to_dest'; } else if (t.state === 'to_dest') { let bestM = null, maxV = 0; machines3.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }}); if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; } moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, tAsmSpd, () => { let take = Math.min(bestM.outCount, tAsmCar - t.carry); bestM.outCount -= take; t.carry += take; t.state = t.carry >= tAsmCar ? 'to_zone' : 'idle'; }); } else if (t.state === 'to_zone') moveBot(t, zoneChair.x + zoneChair.w/2, zoneChair.y + zoneChair.h/2, tAsmSpd, () => { zoneChair.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             transK.forEach(t => { if (t.state === 'idle') { if (t.carry > 0) t.state = 'to_zone'; else if (machines4.some(m => m.outCount > 0)) t.state = 'to_dest'; } else if (t.state === 'to_dest') { let bestM = null, maxV = 0; machines4.forEach(m => { if(m.outCount > 0 && m.outCount > maxV) { maxV = m.outCount; bestM = m; }}); if (!bestM) { t.state = t.carry > 0 ? 'to_zone' : 'idle'; return; } moveBot(t, bestM.x - 30, bestM.y + bestM.h/2, tAsmSpd, () => { let take = Math.min(bestM.outCount, tAsmCar - t.carry); bestM.outCount -= take; t.carry += take; t.state = t.carry >= tAsmCar ? 'to_zone' : 'idle'; }); } else if (t.state === 'to_zone') moveBot(t, zoneTable.x + zoneTable.w/2, zoneTable.y + zoneTable.h/2, tAsmSpd, () => { zoneTable.count += t.carry; t.carry = 0; t.state = 'idle'; }); });
             
-            transL.forEach(t => { if (t.state === 'idle') { if (zoneChair.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneChair.x + zoneChair.w/2, zoneChair.y + zoneChair.h/2, tAsmSpd, () => { let take = Math.min(zoneChair.count, tAsmCar - t.carry); zoneChair.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { moveBot(t, counterChair.x + (counterChair.width/3)*2.5, counterChair.y + counterChair.height/2, tAsmSpd, () => { counterChair.count += t.carry; t.carry = 0; t.state = 'idle'; }); } });
-            transM.forEach(t => { if (t.state === 'idle') { if (zoneTable.count > 0) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneTable.x + zoneTable.w/2, zoneTable.y + zoneTable.h/2, tAsmSpd, () => { let take = Math.min(zoneTable.count, tAsmCar - t.carry); zoneTable.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { moveBot(t, counterTable.x + (counterTable.width/3)*2.5, counterTable.y + counterTable.height/2, tAsmSpd, () => { counterTable.count += t.carry; t.carry = 0; t.state = 'idle'; }); } });
+            transL.forEach(t => { if (t.state === 'idle') { if (zoneChair.count > 0 && !needChairForSet) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneChair.x + zoneChair.w/2, zoneChair.y + zoneChair.h/2, tAsmSpd, () => { let take = Math.min(zoneChair.count, tAsmCar - t.carry); zoneChair.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { moveBot(t, counterChair.x + (counterChair.width/3)*2.5, counterChair.y + counterChair.height/2, tAsmSpd, () => { counterChair.count += t.carry; t.carry = 0; t.state = 'idle'; }); } });
+            transM.forEach(t => { if (t.state === 'idle') { if (zoneTable.count > 0 && !needTableForSet) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneTable.x + zoneTable.w/2, zoneTable.y + zoneTable.h/2, tAsmSpd, () => { let take = Math.min(zoneTable.count, tAsmCar - t.carry); zoneTable.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { moveBot(t, counterTable.x + (counterTable.width/3)*2.5, counterTable.y + counterTable.height/2, tAsmSpd, () => { counterTable.count += t.carry; t.carry = 0; t.state = 'idle'; }); } });
             transN.forEach(t => { if (t.state === 'idle') { if (zoneChair.count > 0 && counterSet.chair < 40) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneChair.x + zoneChair.w/2, zoneChair.y + zoneChair.h/2, tAsmSpd, () => { let take = Math.min(zoneChair.count, tAsmCar - t.carry); zoneChair.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { moveBot(t, counterSet.x + (counterSet.width/3)*2.5, counterSet.y + counterSet.height/2, tAsmSpd, () => { counterSet.chair += t.carry; t.carry = 0; t.state = 'idle'; }); } });
             transO.forEach(t => { if (t.state === 'idle') { if (zoneTable.count > 0 && counterSet.table < 10) t.state = 'to_zone'; } else if (t.state === 'to_zone') moveBot(t, zoneTable.x + zoneTable.w/2, zoneTable.y + zoneTable.h/2, tAsmSpd, () => { let take = Math.min(zoneTable.count, tAsmCar - t.carry); zoneTable.count -= take; t.carry += take; t.state = t.carry > 0 ? 'to_dest' : 'idle'; }); else if (t.state === 'to_dest') { moveBot(t, counterSet.x + (counterSet.width/3)*2.5, counterSet.y + counterSet.height/2, tAsmSpd, () => { counterSet.table += t.carry; t.carry = 0; t.state = 'idle'; }); } });
 
@@ -802,7 +830,7 @@
         function drawItemDots(x, y, count, color) { ctx.fillStyle = color; let dots = Math.min(count, 15); for (let i = 0; i < dots; i++) { let angle = i * (Math.PI * 2 / Math.max(dots, 1)); ctx.beginPath(); ctx.arc(x + Math.cos(angle)*8, y + Math.sin(angle)*8, 3, 0, Math.PI * 2); ctx.fill(); } }
 
         function draw() {
-            ctx.setTransform(1, 0, 0, 1, 0, 0); // 【防禦機制】確保每幀畫布矩陣不殘留
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save(); ctx.translate(-camera.x, -camera.y);
             
