@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>伐木大亨 - 終極介面與穩定版</title>
+    <title>伐木大亨 - 終極穩定防護版</title>
     <style>
         body { 
             margin: 0; padding: 0; overflow: hidden; background-color: #C7EDCC; 
@@ -17,17 +17,23 @@
             position: absolute; top: 5%; left: 5%; width: 90%; height: 90%;
             background: rgba(20, 25, 30, 0.95); color: #E0E0E0; border: 3px solid #DAA520;
             border-radius: 12px; display: none; flex-direction: column; z-index: 100;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8); overflow: hidden;
         }
         .modal-header {
             padding: 15px; border-bottom: 2px solid #555; text-align: center; 
-            position: relative; background: #222; border-radius: 10px 10px 0 0;
+            position: relative; background: #222; border-radius: 10px 10px 0 0; flex-shrink: 0;
         }
         .modal-header h2 { margin: 0; color: #FFD700; font-size: 20px; }
         .close-btn {
             position: absolute; right: 15px; top: 10px; font-size: 28px; 
             color: #FF6347; cursor: pointer; font-weight: bold; line-height: 1;
         }
+        
+        /* 手機版頁籤設計 */
+        .modal-tabs { display: none; width: 100%; background: #1a1a1a; border-bottom: 2px solid #555; flex-shrink: 0; }
+        .tab-btn { flex: 1; padding: 12px; font-size: 16px; border: none; background: none; color: #aaa; cursor: pointer; border-bottom: 3px solid transparent; }
+        .tab-btn.active { color: #FFD700; border-bottom: 3px solid #FFD700; font-weight: bold; }
+
         .modal-body { display: flex; flex: 1; overflow: hidden; flex-direction: row; }
         .stats-left {
             flex: 2; padding: 15px; overflow-y: auto; 
@@ -35,7 +41,7 @@
         }
         .stats-right {
             flex: 1; padding: 15px; border-left: 2px solid #555; 
-            display: flex; flex-direction: column; background: rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; background: rgba(0,0,0,0.3); overflow-y: auto;
         }
         .stat-card { background: #333; padding: 12px; border-radius: 8px; border-left: 5px solid; }
         .card-overview { border-color: #FFD700; } .card-stock { border-color: #20B2AA; }
@@ -45,29 +51,41 @@
         .stat-card h3 { margin: 0 0 8px 0; color: #FFF; font-size: 15px; border-bottom: 1px solid #555; padding-bottom: 4px;}
         .stat-card p { margin: 4px 0; font-size: 13px; color: #CCC;}
         .highlight { color: #FFD700; font-weight: bold; }
+        .price-text { color: #87CEEB; }
         
         .trans-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; }
         .trans-list li { padding: 8px; border-bottom: 1px dashed #555; font-size: 13px; }
         .trans-list li span { color: #ADD8E6; }
         
         @media (max-width: 768px) {
+            .modal-tabs { display: flex; }
             .modal-body { flex-direction: column; }
-            .stats-right { border-left: none; border-top: 2px solid #555; flex: 1.5; }
-            .stats-left { flex: 1; }
+            #stats-left-panel { display: none; }
+            #stats-right-panel { display: none; border-left: none; }
+            #stats-left-panel.active-tab { display: grid; flex: 1; }
+            #stats-right-panel.active-tab { display: flex; flex: 1; }
         }
     </style>
 </head>
 <body>
     <div id="statsModal">
         <div class="modal-header"><h2>📊 管理面板</h2><div class="close-btn" onclick="toggleStats()">×</div></div>
+        
+        <div class="modal-tabs" id="modal-tabs">
+            <button class="tab-btn active" id="tab-overview-btn" onclick="switchStatsTab('overview')">🏢 營運概況</button>
+            <button class="tab-btn" id="tab-logistics-btn" onclick="switchStatsTab('logistics')">🚚 物流監控</button>
+        </div>
+
         <div class="modal-body">
-            <div class="stats-left">
+            <div class="stats-left active-tab" id="stats-left-panel">
                 <div class="stat-card card-overview">
                     <h3>📈 營運總覽</h3>
                     <p>資金: $<span class="highlight" id="st-money">0</span></p>
                     <p>營收: $<span class="highlight" id="st-rpm">0</span>/分</p>
-                    <p>物價: 木$<span class="highlight" id="st-p-log">0</span> | 材$<span class="highlight" id="st-p-lumb">0</span> | 板$<span class="highlight" id="st-p-plank">0</span></p>
-                    <p>傢俱: 椅$<span class="highlight" id="st-p-chair">0</span> | 桌$<span class="highlight" id="st-p-table">0</span> | 套$<span class="highlight" id="st-p-set">0</span></p>
+                    <p style="border-top:1px dashed #555; padding-top:4px; margin-top:4px;">💰 當前物價 (單價)</p>
+                    <p>原木: <span class="price-text" id="st-p-log">0</span> | 木材: <span class="price-text" id="st-p-lumb">0</span></p>
+                    <p>木板: <span class="price-text" id="st-p-plank">0</span> | 椅子: <span class="price-text" id="st-p-chair">0</span></p>
+                    <p>桌子: <span class="price-text" id="st-p-table">0</span> | 餐桌套: <span class="highlight" id="st-p-set">0</span></p>
                 </div>
                 <div class="stat-card card-stock">
                     <h3>📦 集中區庫存</h3>
@@ -97,8 +115,8 @@
                     <p>桌子工廠: <span id="st-m4-count">0</span> 台 (3s, 4材10板)</p>
                 </div>
             </div>
-            <div class="stats-right">
-                <h3 style="margin-top:0; color:#FFF; border-bottom:1px solid #555; padding-bottom:8px;">🚚 物流監控</h3>
+            <div class="stats-right" id="stats-right-panel">
+                <h3 style="margin-top:0; color:#FFF; border-bottom:1px solid #555; padding-bottom:8px;">🚚 物流狀態</h3>
                 <ul class="trans-list" id="st-trans-list"></ul>
             </div>
         </div>
@@ -109,9 +127,10 @@
     <script>
         console.log(`
 =========================================
-[伐木大亨] 版本更新日誌 (v17.4)
-1. 修復: 解決 isInsideUI 與 recordInteraction 函式未定義的點擊崩潰問題。
-2. 系統: 現在可以順利點擊傳送陣、升級按鈕、操作搖桿而不會報錯。
+[伐木大亨] 版本更新日誌 (v18.2)
+1. 終極防禦: 在主迴圈加入 try-catch，徹底防止任何不可預期錯誤導致的畫面凍結。
+2. 自動校正: 讀檔時若發現玩家座標因為舊存檔變為 NaN，會自動校正回起始點。
+3. 安全點擊: 為 isInsideUI 加上物件存在檢查，杜絕誤觸崩潰。
 =========================================
         `);
 
@@ -120,10 +139,11 @@
         const WORLD_WIDTH = 4600; const WORLD_HEIGHT = 2000;
         let camera = { x: 0, y: 0 };
         
-        // 【核心】全域距離與區域判定工具
+        // 【核心安全工具】全域距離與區域判定，加入嚴格防呆
         const distTo = (px, py, tx, ty) => Math.hypot(px - tx, py - ty);
         const inZone = (px, py, box) => Math.abs(px - (box.x + box.w/2)) < box.w/2 && Math.abs(py - (box.y + box.h/2)) < box.h/2;
         const isInsideUI = (x, y, ui) => { 
+            if(!ui) return false;
             if(ui.r) return Math.hypot(x - ui.x, y - ui.y) < ui.r * 1.5; 
             return x >= ui.x && x <= ui.x + ui.w && y >= ui.y && y <= ui.y + ui.h; 
         };
@@ -135,30 +155,43 @@
         let firstInteractionTime = null; let lastInteractionTime = null; let saveTimer = 3.0; 
         let moneyHistory = []; let statTimer = 1.0; let isStatsOpen = false;
 
-        function recordInteraction() { 
-            let now = Date.now(); 
-            if (!firstInteractionTime) firstInteractionTime = now; 
-            lastInteractionTime = now; 
-        }
+        function recordInteraction() { let now = Date.now(); if (!firstInteractionTime) firstInteractionTime = now; lastInteractionTime = now; }
 
-        // 全域變數
         let money = 0; let lastTime = performance.now();
         let tWoodSpd = 250, tWoodCar = 5; let tLumbSpd = 250, tLumbCar = 5; let tPlankSpd = 250, tPlankCar = 5; let tAsmSpd = 250, tAsmCar = 5;
         let gChopSpeed = 250, gChopCarry = 3, gChopTime = 6.0;    
-        let pLog=5, pLumb=15, pPlank=10, pChair=300, pTable=400, pSet=2500;    
-        let gLogSpawn=2.0, gLogDem=0, gLumbSpawn=3.0, gLumbDem=0, gPlankSpawn=2.5, gPlankDem=0;
-        let gChairSpawn=4.0, gChairDem=0, gTableSpawn=5.0, gTableDem=0, gSetSpawn=6.0, gSetDem=0;
+        
+        let prices = { Log: 5, Lumb: 15, Plank: 10, Chair: 300, Table: 400, Set: 2500 };
+        let rates = { LogSpawn: 2.0, LogDem: 0, LumbSpawn: 3.0, LumbDem: 0, PlankSpawn: 2.5, PlankDem: 0, ChairSpawn: 4.0, ChairDem: 0, TableSpawn: 5.0, TableDem: 0, SetSpawn: 6.0, SetDem: 0 };
 
         let tutorialStep = 0; let tutorialShowing = false; let tutorialText = "";
         
         function triggerTutorial(text) { tutorialText = text; tutorialShowing = true; joystick.active = false; player.vx = 0; player.vy = 0; keys.up = keys.down = keys.left = keys.right = false; }
-        function toggleStats() { let modal = document.getElementById('statsModal'); isStatsOpen = !isStatsOpen; modal.style.display = isStatsOpen ? 'flex' : 'none'; if(isStatsOpen) updateStatsDOM(); }
+        
+        function switchStatsTab(tabName) {
+            let tbOver = document.getElementById('tab-overview-btn');
+            let tbLog = document.getElementById('tab-logistics-btn');
+            let pnLeft = document.getElementById('stats-left-panel');
+            let pnRight = document.getElementById('stats-right-panel');
+            
+            if(tbOver) tbOver.classList.toggle('active', tabName === 'overview');
+            if(tbLog) tbLog.classList.toggle('active', tabName === 'logistics');
+            if(pnLeft) pnLeft.classList.toggle('active-tab', tabName === 'overview');
+            if(pnRight) pnRight.classList.toggle('active-tab', tabName === 'logistics');
+        }
 
-        // HUD 座標 (畫面固定)
-        const HUD = {
-            statsBtn: { x: 40, y: 40, r: 20, icon: '📊' },
-            clearBtn: { x: 100, y: 40, r: 20, icon: '🗑️' }
-        };
+        function toggleStats() { 
+            let modal = document.getElementById('statsModal'); 
+            if(!modal) return;
+            isStatsOpen = !isStatsOpen; 
+            modal.style.display = isStatsOpen ? 'flex' : 'none'; 
+            if(isStatsOpen) { 
+                updateStatsDOM(); 
+                if (window.innerWidth <= 768) switchStatsTab('overview'); 
+            } 
+        }
+
+        const HUD = { statsBtn: { x: 40, y: 40, r: 20, icon: '📊' }, clearBtn: { x: 100, y: 40, r: 20, icon: '🗑️' } };
 
         const teleports = [
             { x: 0, y: 0, r: 25, icon: "🌲", label: "森林", tx: 4000, ty: 400, color: '#228B22' },
@@ -170,26 +203,15 @@
 
         function resize() { 
             canvas.width = window.innerWidth; canvas.height = window.innerHeight; 
-            // 搖桿固定右下角
-            joystick.x = canvas.width - 90; 
-            joystick.y = canvas.height - 90; 
+            joystick.x = canvas.width - 90; joystick.y = canvas.height - 90; 
+            uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; uiOkBtn.y = 20; 
             
-            // 確認購買置中於頂部
-            uiOkBtn.x = canvas.width / 2 - uiOkBtn.w / 2; 
-            uiOkBtn.y = 20; 
-            
-            // 傳送陣垂直靠左排列
-            let gap = 15; 
-            let totalH = teleports.length * (teleports[0].r * 2) + (teleports.length - 1) * gap;
+            let gap = 15; let totalH = teleports.length * (teleports[0].r * 2) + (teleports.length - 1) * gap;
             let startY = canvas.height / 2 - totalH / 2;
-            teleports.forEach((tp, i) => { 
-                tp.x = 50; 
-                tp.y = startY + i * (tp.r * 2 + gap) + tp.r; 
-            });
+            teleports.forEach((tp, i) => { tp.x = 50; tp.y = startY + i * (tp.r * 2 + gap) + tp.r; });
         }
         window.addEventListener('resize', resize); 
 
-        // 產線座標
         const forestStartX = 4000; const startY = 200; const spacing = 60; let forestCols = 5; let forestRows = 5;
         const zoneWood = { x: 3700, y: 200, w: 120, h: 80, count: 0 };
         const zoneLumber = { x: 2900, y: 200, w: 120, h: 80, count: 0 };
@@ -199,13 +221,12 @@
         
         const machines1 = []; const machines2 = []; const machines3 = []; const machines4 = [];
 
-        // 收銀台
         const counterSet = { x: 150, y: 150, width: 240, height: 60, chair: 0, table: 0, money: 0 };
-        const counterTable = { x: 150, y: 320, width: 240, height: 60, count: 0, money: 0 };
-        const counterChair = { x: 150, y: 490, width: 240, height: 60, count: 0, money: 0 };
-        const counterPlank = { x: 150, y: 660, width: 240, height: 60, count: 0, money: 0 };
-        const counterLumber = { x: 150, y: 830, width: 240, height: 60, count: 0, money: 0 };
-        const counterLog = { x: 150, y: 1000, width: 240, height: 60, count: 0, money: 0 };
+        const counterTable = { x: 150, y: 340, width: 240, height: 60, count: 0, money: 0 };
+        const counterChair = { x: 150, y: 530, width: 240, height: 60, count: 0, money: 0 };
+        const counterPlank = { x: 150, y: 720, width: 240, height: 60, count: 0, money: 0 };
+        const counterLumber = { x: 150, y: 910, width: 240, height: 60, count: 0, money: 0 };
+        const counterLog = { x: 150, y: 1100, width: 240, height: 60, count: 0, money: 0 };
 
         const player = { x: counterLog.x + 120, y: counterLog.y - 100, radius: 15, speed: 350, wood: 0, lumber: 0, plank: 0, chair: 0, table: 0, chopTimer: 0, vx: 0, vy: 0 };
         let choppingTree = null; const autoChoppers = []; 
@@ -226,7 +247,7 @@
         function formatMoney(num) {
             if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
             if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-            return num;
+            return num || 0;
         }
 
         const upgrades = {
@@ -278,79 +299,83 @@
         };
 
         const counterList = [
-            { id: 'Log', c: counterLog, req: null, baseP: 5, pUp: 2, pCost: 300, cCost: 200, mCost: 400, mSpawn: 2.0, mDem: 5, lbl: '原木' },
-            { id: 'Lumb', c: counterLumber, req: 'm1Buy', baseP: 15, pUp: 5, pCost: 800, cCost: 800, mCost: 1000, mSpawn: 3.0, mDem: 5, lbl: '木材' },
-            { id: 'Plank', c: counterPlank, req: 'm2Buy', baseP: 10, pUp: 4, pCost: 2000, cCost: 2000, mCost: 2500, mSpawn: 2.5, mDem: 5, lbl: '木板' },
-            { id: 'Chair', c: counterChair, req: 'm3Buy', baseP: 300, pUp: 50, pCost: 6000, cCost: 5000, mCost: 8000, mSpawn: 4.0, mDem: 1, lbl: '椅子' },
-            { id: 'Table', c: counterTable, req: 'm4Buy', baseP: 400, pUp: 80, pCost: 10000, cCost: 8000, mCost: 12000, mSpawn: 5.0, mDem: 1, lbl: '桌子' },
-            { id: 'Set', c: counterSet, req: 'm4Buy', baseP: 2500, pUp: 500, pCost: 30000, cCost: 20000, mCost: 40000, mSpawn: 6.0, mDem: 1, lbl: '餐桌' }
+            { id: 'Log', c: counterLog, req: null, pUp: 2, pCost: 300, cCost: 200, mCost: 400, mDem: 5 },
+            { id: 'Lumb', c: counterLumber, req: 'm1Buy', pUp: 5, pCost: 800, cCost: 800, mCost: 1000, mDem: 5 },
+            { id: 'Plank', c: counterPlank, req: 'm2Buy', pUp: 4, pCost: 2000, cCost: 2000, mCost: 2500, mDem: 5 },
+            { id: 'Chair', c: counterChair, req: 'm3Buy', pUp: 50, pCost: 6000, cCost: 5000, mCost: 8000, mDem: 1 },
+            { id: 'Table', c: counterTable, req: 'm4Buy', pUp: 80, pCost: 10000, cCost: 8000, mCost: 12000, mDem: 1 },
+            { id: 'Set', c: counterSet, req: 'm4Buy', pUp: 500, pCost: 30000, cCost: 20000, mCost: 40000, mDem: 1 }
         ];
 
         counterList.forEach(cl => {
             let cx = cl.c.x, cy = cl.c.y + cl.c.height + 5;
             upgrades['cash' + cl.id] = { box: {x: cx, y: cy, w: 78, h: 35}, title: '自動收銀', costVal: cl.cCost, bought: false, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return !this.bought;}, cost: function(){return this.costVal;}, desc: function(){return this.req()?`$${formatMoney(this.costVal)}`:'已配置';}, action: function(){this.bought=true;} };
-            upgrades['price' + cl.id] = { box: {x: cx + 81, y: cy, w: 78, h: 35}, title: `漲價`, costVal: cl.pCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return true;}, cost: function(){return this.costVal;}, desc: function(){return `升:$${formatMoney(this.costVal)}`;}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.6); window['p'+cl.id] += cl.pUp;} };
-            upgrades['mark' + cl.id] = { box: {x: cx + 162, y: cy, w: 78, h: 35}, title: '客流升級', costVal: cl.mCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return this.level < 8;}, cost: function(){return this.costVal;}, desc: function(){return this.req()?`升:$${formatMoney(this.costVal)}`:'滿等';}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.8); window['g'+cl.id+'Spawn'] = Math.max(0.5, window['g'+cl.id+'Spawn'] - 0.2); window['g'+cl.id+'Dem'] += cl.mDem;} };
+            upgrades['price' + cl.id] = { box: {x: cx + 81, y: cy, w: 78, h: 35}, title: `漲價`, costVal: cl.pCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return true;}, cost: function(){return this.costVal;}, desc: function(){return `升:$${formatMoney(this.costVal)}`;}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.6); prices[cl.id] += cl.pUp;} };
+            upgrades['mark' + cl.id] = { box: {x: cx + 162, y: cy, w: 78, h: 35}, title: '客流升級', costVal: cl.mCost, level: 1, cd: 0, hidden: function(){return cl.req && upgrades[cl.req].count===0;}, req: function(){return this.level < 8;}, cost: function(){return this.costVal;}, desc: function(){return this.req()?`升:$${formatMoney(this.costVal)}`:'滿等';}, action: function(){this.level++; this.costVal=Math.floor(this.costVal*1.8); rates[cl.id+'Spawn'] = Math.max(0.5, rates[cl.id+'Spawn'] - 0.2); rates[cl.id+'Dem'] += cl.mDem;} };
         });
 
+        // 建立安全渲染防護網
         function updateStatsDOM() {
             if (!isStatsOpen) return;
             let rpm = moneyHistory.length > 1 ? Math.floor((moneyHistory[moneyHistory.length-1] - moneyHistory[0]) * (60 / moneyHistory.length)) : 0;
             let cutRate = (upgrades.auto.count * gChopCarry) / gChopTime;
 
-            document.getElementById('st-money').innerText = formatMoney(money);
-            document.getElementById('st-rpm').innerText = formatMoney(rpm);
+            const setTxt = (id, val) => {
+                let el = document.getElementById(id);
+                if (el) el.innerText = val;
+            };
+
+            setTxt('st-money', formatMoney(money));
+            setTxt('st-rpm', formatMoney(rpm));
+            setTxt('st-chop-rate', cutRate.toFixed(1));
+
+            setTxt('st-p-log', prices.Log);
+            setTxt('st-p-lumb', prices.Lumb);
+            setTxt('st-p-plank', prices.Plank);
+            setTxt('st-p-chair', prices.Chair);
+            setTxt('st-p-table', prices.Table);
+            setTxt('st-p-set', prices.Set);
+
+            setTxt('st-stock-wood', zoneWood.count);
+            setTxt('st-stock-lumb', zoneLumber.count);
+            setTxt('st-stock-plank', zonePlank.count);
+            setTxt('st-stock-chair', zoneChair.count);
+            setTxt('st-stock-table', zoneTable.count);
+
+            setTxt('st-chop-count', upgrades.auto.count);
+            setTxt('st-chop-time', gChopTime.toFixed(1));
             
-            let chopRateElem = document.getElementById('st-chop-rate');
-            if(chopRateElem) chopRateElem.innerText = cutRate.toFixed(1);
-
-            document.getElementById('st-p-log').innerText = pLog;
-            document.getElementById('st-p-lumb').innerText = pLumb;
-            document.getElementById('st-p-plank').innerText = pPlank;
-            document.getElementById('st-p-chair').innerText = pChair;
-            document.getElementById('st-p-table').innerText = pTable;
-            document.getElementById('st-p-set').innerText = pSet;
-
-            document.getElementById('st-stock-wood').innerText = zoneWood.count;
-            document.getElementById('st-stock-lumb').innerText = zoneLumber.count;
-            document.getElementById('st-stock-plank').innerText = zonePlank.count;
-            document.getElementById('st-stock-chair').innerText = zoneChair.count;
-            document.getElementById('st-stock-table').innerText = zoneTable.count;
-
-            document.getElementById('st-chop-count').innerText = upgrades.auto.count;
-            document.getElementById('st-chop-time').innerText = gChopTime.toFixed(1);
+            setTxt('st-m1-count', machines1.length);
+            setTxt('st-m1-spd', upgrades.m1Speed.maxTime.toFixed(1));
+            setTxt('st-m1-blade', upgrades.m1Blade.level);
             
-            if(document.getElementById('st-m1-count')) {
-                document.getElementById('st-m1-count').innerText = machines1.length;
-                document.getElementById('st-m1-spd').innerText = upgrades.m1Speed.maxTime.toFixed(1);
-                document.getElementById('st-m1-blade').innerText = upgrades.m1Blade.level;
+            setTxt('st-m2-count', machines2.length);
+            setTxt('st-m2-spd', upgrades.m2Speed.maxTime.toFixed(1));
+            setTxt('st-m2-blade', upgrades.m2Blade.level);
+            
+            setTxt('st-m3-count', machines3.length);
+            setTxt('st-m4-count', machines4.length);
+
+            let listEl = document.getElementById('st-trans-list');
+            if (listEl) {
+                listEl.innerHTML = `
+                    <li><span>[原木]</span> 運A(賣): ${transA.length}/4 (速:${tWoodSpd} 容:${tWoodCar})</li>
+                    <li><span>[原木]</span> 運B(去皮): ${transB.length}/4 (速:${tWoodSpd} 容:${tWoodCar})</li>
+                    <li><span>[木材]</span> 運C(收): ${transC.length}/4 (速:${tLumbSpd} 容:${tLumbCar})</li>
+                    <li><span>[木材]</span> 運D(賣): ${transD.length}/4 (速:${tLumbSpd} 容:${tLumbCar})</li>
+                    <li><span>[木材]</span> 運E(切割): ${transE.length}/4 (速:${tLumbSpd} 容:${tLumbCar})</li>
+                    <li><span>[木板]</span> 運F(收): ${transF.length}/4 (速:${tPlankSpd} 容:${tPlankCar*3})</li>
+                    <li><span>[木板]</span> 運G(賣): ${transG.length}/4 (速:${tPlankSpd} 容:${tPlankCar*3})</li>
+                    <li><span>[組裝]</span> 運H(材赴組): ${transH.length}/3 (速:${tLumbSpd} 容:${tLumbCar})</li>
+                    <li><span>[組裝]</span> 運I(板赴組): ${transI.length}/3 (速:${tPlankSpd} 容:${tPlankCar*3})</li>
+                    <li><span>[組裝]</span> 運J(收椅): ${transJ.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
+                    <li><span>[組裝]</span> 運K(收桌): ${transK.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
+                    <li><span>[單賣]</span> 運L(賣椅): ${transL.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
+                    <li><span>[單賣]</span> 運M(賣桌): ${transM.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
+                    <li><span>[套餐]</span> 運N(送套椅): ${transN.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
+                    <li><span>[套餐]</span> 運O(送套桌): ${transO.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
+                `;
             }
-            if(document.getElementById('st-m2-count')) {
-                document.getElementById('st-m2-count').innerText = machines2.length;
-                document.getElementById('st-m2-spd').innerText = upgrades.m2Speed.maxTime.toFixed(1);
-                document.getElementById('st-m2-blade').innerText = upgrades.m2Blade.level;
-            }
-            
-            if(document.getElementById('st-m3-count')) document.getElementById('st-m3-count').innerText = machines3.length;
-            if(document.getElementById('st-m4-count')) document.getElementById('st-m4-count').innerText = machines4.length;
-
-            document.getElementById('st-trans-list').innerHTML = `
-                <li><span>[原木]</span> 運A(賣): ${transA.length}/4 (速:${tWoodSpd} 容:${tWoodCar})</li>
-                <li><span>[原木]</span> 運B(去皮): ${transB.length}/4 (速:${tWoodSpd} 容:${tWoodCar})</li>
-                <li><span>[木材]</span> 運C(收): ${transC.length}/4 (速:${tLumbSpd} 容:${tLumbCar})</li>
-                <li><span>[木材]</span> 運D(賣): ${transD.length}/4 (速:${tLumbSpd} 容:${tLumbCar})</li>
-                <li><span>[木材]</span> 運E(切割): ${transE.length}/4 (速:${tLumbSpd} 容:${tLumbCar})</li>
-                <li><span>[木板]</span> 運F(收): ${transF.length}/4 (速:${tPlankSpd} 容:${tPlankCar*3})</li>
-                <li><span>[木板]</span> 運G(賣): ${transG.length}/4 (速:${tPlankSpd} 容:${tPlankCar*3})</li>
-                <li><span>[組裝]</span> 運H(材赴組): ${transH.length}/3 (速:${tLumbSpd} 容:${tLumbCar})</li>
-                <li><span>[組裝]</span> 運I(板赴組): ${transI.length}/3 (速:${tPlankSpd} 容:${tPlankCar*3})</li>
-                <li><span>[組裝]</span> 運J(收椅): ${transJ.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
-                <li><span>[組裝]</span> 運K(收桌): ${transK.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
-                <li><span>[單賣]</span> 運L(賣椅): ${transL.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
-                <li><span>[單賣]</span> 運M(賣桌): ${transM.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
-                <li><span>[套餐]</span> 運N(送套椅): ${transN.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
-                <li><span>[套餐]</span> 運O(送套桌): ${transO.length}/3 (速:${tAsmSpd} 容:${tAsmCar})</li>
-            `;
         }
 
         function updateUIPositions() {
@@ -362,23 +387,22 @@
 
         function saveGame() {
             const data = {
-                version: 17, tutorialStep, money,
-                globals: { tWoodSpd, tWoodCar, tLumbSpd, tLumbCar, tPlankSpd, tPlankCar, tAsmSpd, tAsmCar, gChopSpeed, gChopCarry, gChopTime, pLog, pLumb, pPlank, pChair, pTable, pSet, gLogSpawn, gLogDem, gLumbSpawn, gLumbDem, gPlankSpawn, gPlankDem, gChairSpawn, gChairDem, gTableSpawn, gTableDem, gSetSpawn, gSetDem },
+                version: 18, tutorialStep, money,
+                globals: { tWoodSpd, tWoodCar, tLumbSpd, tLumbCar, tPlankSpd, tPlankCar, tAsmSpd, tAsmCar, gChopSpeed, gChopCarry, gChopTime, prices, rates },
                 player, counterLog, counterLumber, counterPlank, counterChair, counterTable, counterSet,
                 zoneWood, zoneLumber, zonePlank, zoneChair, zoneTable, forestCols, forestRows,
                 trees: trees.map(t => ({ isCut: t.isCut, respawnTimer: t.respawnTimer, currentStage: t.currentStage })),
                 firstInteractionTime, lastInteractionTime, upgrades: {}
             };
             for(let key in upgrades) { let u = upgrades[key]; data.upgrades[key] = { level: u.level, count: u.count, costVal: u.costVal, bought: u.bought, maxTime: u.maxTime }; }
-            localStorage.setItem('lumberjack_save_v17', JSON.stringify(data));
+            localStorage.setItem('lumberjack_save_v18', JSON.stringify(data));
         }
 
         function loadGame() {
-            const saved = localStorage.getItem('lumberjack_save_v17');
+            let saved = localStorage.getItem('lumberjack_save_v18') || localStorage.getItem('lumberjack_save_v17') || localStorage.getItem('lumberjack_save_v16');
             if (!saved) return false;
             try {
                 const data = JSON.parse(saved);
-                if (data.version !== 17) return false; 
                 tutorialStep = data.tutorialStep || 0; money = data.money || 0;
                 
                 if (data.globals) {
@@ -388,16 +412,18 @@
                     tAsmSpd = data.globals.tAsmSpd || 250; tAsmCar = data.globals.tAsmCar || 5;
                     gChopSpeed = data.globals.gChopSpeed || 250; gChopCarry = data.globals.gChopCarry || 3;
                     gChopTime = data.globals.gChopTime || 6.0;
-                    pLog = data.globals.pLog || 5; pLumb = data.globals.pLumb || 15; pPlank = data.globals.pPlank || 10;
-                    pChair = data.globals.pChair || 300; pTable = data.globals.pTable || 400; pSet = data.globals.pSet || 2500;
-                    gLogSpawn = data.globals.gLogSpawn || 2.0; gLogDem = data.globals.gLogDem || 0;
-                    gLumbSpawn = data.globals.gLumbSpawn || 3.0; gLumbDem = data.globals.gLumbDem || 0;
-                    gPlankSpawn = data.globals.gPlankSpawn || 2.5; gPlankDem = data.globals.gPlankDem || 0;
-                    gChairSpawn = data.globals.gChairSpawn || 4.0; gChairDem = data.globals.gChairDem || 0;
-                    gTableSpawn = data.globals.gTableSpawn || 5.0; gTableDem = data.globals.gTableDem || 0;
-                    gSetSpawn = data.globals.gSetSpawn || 6.0; gSetDem = data.globals.gSetDem || 0;
+                    
+                    if (data.globals.prices) Object.assign(prices, data.globals.prices);
+                    if (data.globals.rates) Object.assign(rates, data.globals.rates);
                 }
-                Object.assign(player, data.player);
+                
+                if (data.player) {
+                    Object.assign(player, data.player);
+                    // 【防崩潰】保護玩家座標不為 NaN
+                    player.x = Number(player.x) || counterLog.x + 120;
+                    player.y = Number(player.y) || counterLog.y - 100;
+                }
+
                 Object.assign(counterLog, data.counterLog); Object.assign(counterLumber, data.counterLumber); Object.assign(counterPlank, data.counterPlank);
                 Object.assign(counterChair, data.counterChair); Object.assign(counterTable, data.counterTable); Object.assign(counterSet, data.counterSet);
                 Object.assign(zoneWood, data.zoneWood); Object.assign(zoneLumber, data.zoneLumber); Object.assign(zonePlank, data.zonePlank);
@@ -406,7 +432,10 @@
                 firstInteractionTime = data.firstInteractionTime; lastInteractionTime = data.lastInteractionTime;
                 for(let key in data.upgrades) if (upgrades[key]) Object.assign(upgrades[key], data.upgrades[key]);
                 return { savedTreeData: data.trees };
-            } catch (e) { return false; }
+            } catch (e) { 
+                console.error('載入存檔失敗，已重置', e);
+                return false; 
+            }
         }
 
         let loadResult = loadGame();
@@ -445,7 +474,7 @@
             recordInteraction();
             if (tutorialShowing) { tutorialShowing = false; return; }
             
-            if (isInsideUI(clientX, clientY, HUD.clearBtn)) { if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) { localStorage.removeItem('lumberjack_save_v17'); location.reload(); } return; }
+            if (isInsideUI(clientX, clientY, HUD.clearBtn)) { if (confirm("確定要清除所有存檔並重新開始嗎？\n注意：這將無法恢復！")) { localStorage.removeItem('lumberjack_save_v18'); location.reload(); } return; }
             if (isInsideUI(clientX, clientY, HUD.statsBtn)) { toggleStats(); return; }
             
             let tpClicked = false;
@@ -484,7 +513,7 @@
             if(customersArr.length === 0) return; let current = customersArr[0];
             let setsAvail = Math.floor(Math.min(counter.chair / 4, counter.table / 1));
             let sellAmount = Math.min(setsAvail, current.need);
-            counter.chair -= sellAmount * 4; counter.table -= sellAmount * 1; current.need -= sellAmount; counter.money += sellAmount * pSet;
+            counter.chair -= sellAmount * 4; counter.table -= sellAmount * 1; current.need -= sellAmount; counter.money += sellAmount * prices.Set;
             if (current.need <= 0) customersArr.shift();
         }
 
@@ -603,17 +632,17 @@
                 } 
             });
 
-            const checkCounter = (counter, pProp, customersArr, cashierObj, price) => { 
+            const checkCounter = (counter, pProp, customersArr, cashierObj, priceVal) => { 
                 const zoneW = counter.width / 3; let cY = counter.y + counter.height / 2; 
                 if (distTo(player.x, player.y, counter.x + zoneW * 2.5, cY) < interactRad && player[pProp] > 0) { counter.count += player[pProp]; player[pProp] = 0; } 
-                if (distTo(player.x, player.y, counter.x + zoneW * 1.5, cY) < interactRad && !cashierObj.bought) processTransaction(counter, customersArr, price); 
+                if (distTo(player.x, player.y, counter.x + zoneW * 1.5, cY) < interactRad && !cashierObj.bought) processTransaction(counter, customersArr, priceVal); 
                 if (distTo(player.x, player.y, counter.x + zoneW * 0.5, cY) < interactRad && counter.money > 0) { money += counter.money; counter.money = 0; } 
             };
-            checkCounter(counterLog, 'wood', custLog, upgrades.cashLog, pLog); 
-            if (upgrades.m1Buy.count > 0) checkCounter(counterLumber, 'lumber', custLumb, upgrades.cashLumb, pLumb);
-            if (upgrades.m2Buy.count > 0) checkCounter(counterPlank, 'plank', custPlank, upgrades.cashPlank, pPlank);
-            if (upgrades.m3Buy.count > 0) checkCounter(counterChair, 'chair', custChair, upgrades.cashChair, pChair);
-            if (upgrades.m4Buy.count > 0) checkCounter(counterTable, 'table', custTable, upgrades.cashTable, pTable);
+            checkCounter(counterLog, 'wood', custLog, upgrades.cashLog, prices.Log); 
+            if (upgrades.m1Buy.count > 0) checkCounter(counterLumber, 'lumber', custLumb, upgrades.cashLumb, prices.Lumb);
+            if (upgrades.m2Buy.count > 0) checkCounter(counterPlank, 'plank', custPlank, upgrades.cashPlank, prices.Plank);
+            if (upgrades.m3Buy.count > 0) checkCounter(counterChair, 'chair', custChair, upgrades.cashChair, prices.Chair);
+            if (upgrades.m4Buy.count > 0) checkCounter(counterTable, 'table', custTable, upgrades.cashTable, prices.Table);
 
             if (upgrades.m3Buy.count > 0 && upgrades.m4Buy.count > 0) {
                 const zW = counterSet.width/3; let cY = counterSet.y + counterSet.height/2;
@@ -622,23 +651,23 @@
                 if(distTo(player.x, player.y, counterSet.x + zW*0.5, cY)<interactRad && counterSet.money>0){money+=counterSet.money;counterSet.money=0;}
             }
 
-            if (upgrades.cashLog.bought) { cashTimerLog -= dt; if (cashTimerLog <= 0) { processTransaction(counterLog, custLog, pLog); cashTimerLog = 0.5; } }
-            if (upgrades.cashLumb.bought) { cashTimerLumber -= dt; if (cashTimerLumber <= 0) { processTransaction(counterLumber, custLumb, pLumb); cashTimerLumber = 0.5; } }
-            if (upgrades.cashPlank.bought) { cashTimerPlank -= dt; if (cashTimerPlank <= 0) { processTransaction(counterPlank, custPlank, pPlank); cashTimerPlank = 0.5; } }
-            if (upgrades.cashChair.bought) { cashTimerChair -= dt; if (cashTimerChair <= 0) { processTransaction(counterChair, custChair, pChair); cashTimerChair = 0.5; } }
-            if (upgrades.cashTable.bought) { cashTimerTable -= dt; if (cashTimerTable <= 0) { processTransaction(counterTable, custTable, pTable); cashTimerTable = 0.5; } }
+            if (upgrades.cashLog.bought) { cashTimerLog -= dt; if (cashTimerLog <= 0) { processTransaction(counterLog, custLog, prices.Log); cashTimerLog = 0.5; } }
+            if (upgrades.cashLumb.bought) { cashTimerLumber -= dt; if (cashTimerLumber <= 0) { processTransaction(counterLumber, custLumb, prices.Lumb); cashTimerLumber = 0.5; } }
+            if (upgrades.cashPlank.bought) { cashTimerPlank -= dt; if (cashTimerPlank <= 0) { processTransaction(counterPlank, custPlank, prices.Plank); cashTimerPlank = 0.5; } }
+            if (upgrades.cashChair.bought) { cashTimerChair -= dt; if (cashTimerChair <= 0) { processTransaction(counterChair, custChair, prices.Chair); cashTimerChair = 0.5; } }
+            if (upgrades.cashTable.bought) { cashTimerTable -= dt; if (cashTimerTable <= 0) { processTransaction(counterTable, custTable, prices.Table); cashTimerTable = 0.5; } }
             if (upgrades.cashSet.bought) { cashTimerSet -= dt; if (cashTimerSet <= 0) { processSetTransaction(counterSet, custSet); cashTimerSet = 0.5; } }
 
             let standingOnUpgrade = null;
             Object.values(upgrades).forEach(up => { if (up.cd > 0) up.cd -= dt; if (up.hidden && up.hidden()) return; if (inZone(player.x, player.y, up.box) && up.req() && up.cd <= 0) standingOnUpgrade = up; });
             if (standingOnUpgrade && money >= standingOnUpgrade.cost()) { uiOkBtn.active = true; uiOkBtn.target = standingOnUpgrade; } else { uiOkBtn.active = false; uiOkBtn.target = null; }
             
-            spawnTimerLog -= dt; if (spawnTimerLog <= 0) { if (custLog.length < 10) custLog.push({ need: Math.floor(Math.random() * 7) + 2 + gLogDem }); spawnTimerLog = gLogSpawn; }
-            if (upgrades.m1Buy.count > 0) { spawnTimerLumber -= dt; if (spawnTimerLumber <= 0) { if (custLumb.length < 10) custLumb.push({ need: Math.floor(Math.random() * 5) + 2 + gLumbDem }); spawnTimerLumber = gLumbSpawn; } }
-            if (upgrades.m2Buy.count > 0) { spawnTimerPlank -= dt; if (spawnTimerPlank <= 0) { if (custPlank.length < 10) custPlank.push({ need: Math.floor(Math.random() * 8) + 3 + gPlankDem }); spawnTimerPlank = gPlankSpawn; } }
-            if (upgrades.m3Buy.count > 0) { spawnTimerChair -= dt; if (spawnTimerChair <= 0) { if (custChair.length < 10) custChair.push({ need: Math.floor(Math.random() * 3) + 1 + gChairDem }); spawnTimerChair = gChairSpawn; } }
-            if (upgrades.m4Buy.count > 0) { spawnTimerTable -= dt; if (spawnTimerTable <= 0) { if (custTable.length < 10) custTable.push({ need: Math.floor(Math.random() * 2) + 1 + gTableDem }); spawnTimerTable = gTableSpawn; } }
-            if (upgrades.m3Buy.count > 0 && upgrades.m4Buy.count > 0) { spawnTimerSet -= dt; if (spawnTimerSet <= 0) { if (custSet.length < 5) custSet.push({ need: Math.floor(Math.random() * 2) + 1 + gSetDem }); spawnTimerSet = gSetSpawn; } }
+            spawnTimerLog -= dt; if (spawnTimerLog <= 0) { if (custLog.length < 10) custLog.push({ need: Math.floor(Math.random() * 7) + 2 + rates.LogDem }); spawnTimerLog = rates.LogSpawn; }
+            if (upgrades.m1Buy.count > 0) { spawnTimerLumber -= dt; if (spawnTimerLumber <= 0) { if (custLumb.length < 10) custLumb.push({ need: Math.floor(Math.random() * 5) + 2 + rates.LumbDem }); spawnTimerLumber = rates.LumbSpawn; } }
+            if (upgrades.m2Buy.count > 0) { spawnTimerPlank -= dt; if (spawnTimerPlank <= 0) { if (custPlank.length < 10) custPlank.push({ need: Math.floor(Math.random() * 8) + 3 + rates.PlankDem }); spawnTimerPlank = rates.PlankSpawn; } }
+            if (upgrades.m3Buy.count > 0) { spawnTimerChair -= dt; if (spawnTimerChair <= 0) { if (custChair.length < 10) custChair.push({ need: Math.floor(Math.random() * 3) + 1 + rates.ChairDem }); spawnTimerChair = rates.ChairSpawn; } }
+            if (upgrades.m4Buy.count > 0) { spawnTimerTable -= dt; if (spawnTimerTable <= 0) { if (custTable.length < 10) custTable.push({ need: Math.floor(Math.random() * 2) + 1 + rates.TableDem }); spawnTimerTable = rates.TableSpawn; } }
+            if (upgrades.m3Buy.count > 0 && upgrades.m4Buy.count > 0) { spawnTimerSet -= dt; if (spawnTimerSet <= 0) { if (custSet.length < 5) custSet.push({ need: Math.floor(Math.random() * 2) + 1 + rates.SetDem }); spawnTimerSet = rates.SetSpawn; } }
 
             saveTimer -= dt; if (saveTimer <= 0) { saveGame(); saveTimer = 3.0; }
         }
@@ -696,12 +725,12 @@
             for(let i=0; i<WORLD_WIDTH; i+=100) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, WORLD_HEIGHT); ctx.stroke(); } 
             for(let i=0; i<WORLD_HEIGHT; i+=100) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(WORLD_WIDTH, i); ctx.stroke(); }
             
-            drawCounter(counterLog, "原木專賣", "木", upgrades.cashLog, pLog); drawCustomers(counterLog, custLog); 
-            if (upgrades.m1Buy.count > 0) { drawCounter(counterLumber, "木材專賣", "材", upgrades.cashLumb, pLumb); drawCustomers(counterLumber, custLumb); }
-            if (upgrades.m2Buy.count > 0) { drawCounter(counterPlank, "木板專賣", "板", upgrades.cashPlank, pPlank); drawCustomers(counterPlank, custPlank); }
-            if (upgrades.m3Buy.count > 0) { drawCounter(counterChair, "椅子專賣", "椅", upgrades.cashChair, pChair); drawCustomers(counterChair, custChair); }
-            if (upgrades.m4Buy.count > 0) { drawCounter(counterTable, "桌子專賣", "桌", upgrades.cashTable, pTable); drawCustomers(counterTable, custTable); }
-            if (upgrades.m3Buy.count > 0 && upgrades.m4Buy.count > 0) { drawCounter(counterSet, "餐桌組(4椅1桌)", "套", upgrades.cashSet, pSet); drawCustomers(counterSet, custSet); }
+            drawCounter(counterLog, "原木專賣", "木", upgrades.cashLog, prices.Log); drawCustomers(counterLog, custLog); 
+            if (upgrades.m1Buy.count > 0) { drawCounter(counterLumber, "木材專賣", "材", upgrades.cashLumb, prices.Lumb); drawCustomers(counterLumber, custLumb); }
+            if (upgrades.m2Buy.count > 0) { drawCounter(counterPlank, "木板專賣", "板", upgrades.cashPlank, prices.Plank); drawCustomers(counterPlank, custPlank); }
+            if (upgrades.m3Buy.count > 0) { drawCounter(counterChair, "椅子專賣", "椅", upgrades.cashChair, prices.Chair); drawCustomers(counterChair, custChair); }
+            if (upgrades.m4Buy.count > 0) { drawCounter(counterTable, "桌子專賣", "桌", upgrades.cashTable, prices.Table); drawCustomers(counterTable, custTable); }
+            if (upgrades.m3Buy.count > 0 && upgrades.m4Buy.count > 0) { drawCounter(counterSet, "餐桌組(4椅1桌)", "套", upgrades.cashSet, prices.Set); drawCustomers(counterSet, custSet); }
 
             const drawZone = (zone, title, color) => { ctx.fillStyle = '#EEE8AA'; ctx.fillRect(zone.x, zone.y, zone.w, zone.h); ctx.fillStyle = '#333'; ctx.font = '16px Arial'; ctx.fillText(title, zone.x + 20, zone.y + 35); ctx.fillStyle = color; ctx.fillText(`存量: ${zone.count}`, zone.x + 20, zone.y + 60); };
             drawZone(zoneWood, `原木集中區`, '#8B4513');
@@ -764,14 +793,12 @@
 
             // 畫面上層 UI (不受相機影響)
             
-            // 左上角面板與清除按鈕
             ctx.fillStyle = '#4682B4'; ctx.beginPath(); ctx.arc(HUD.statsBtn.x, HUD.statsBtn.y, HUD.statsBtn.r, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#FFF'; ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.fillText(HUD.statsBtn.icon, HUD.statsBtn.x, HUD.statsBtn.y + 7);
             
             ctx.fillStyle = '#CD5C5C'; ctx.beginPath(); ctx.arc(HUD.clearBtn.x, HUD.clearBtn.y, HUD.clearBtn.r, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#FFF'; ctx.font = '20px Arial'; ctx.textAlign = 'center'; ctx.fillText(HUD.clearBtn.icon, HUD.clearBtn.x, HUD.clearBtn.y + 7);
             
-            // 右上角：資金與身上物品顯示
             let invX = canvas.width - 150;
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.fillRect(invX, 20, 130, 165); 
             ctx.fillStyle = '#FFD700'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'left'; ctx.fillText(`$${formatMoney(money)}`, invX + 10, 45);
@@ -782,7 +809,6 @@
             ctx.fillStyle = '#FF6347'; ctx.fillText(`🪑 :  ${player.chair}`, invX + 10, 135);
             ctx.fillStyle = '#A0522D'; ctx.fillText(`🗄️ :  ${player.table}`, invX + 10, 155);
 
-            // 左側垂直傳送陣 (含當前區域高亮)
             let activeTpIndex = -1;
             let minDistToTp = Infinity;
             teleports.forEach((tp, i) => {
@@ -805,12 +831,10 @@
             });
             ctx.textAlign = 'left';
 
-            // 右下角搖桿
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; ctx.beginPath(); ctx.arc(joystick.x, joystick.y, joystick.radius, 0, Math.PI * 2); ctx.fill(); 
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.lineWidth = 2; ctx.stroke(); 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.beginPath(); ctx.arc(joystick.x + joystick.knobX, joystick.y + joystick.knobY, 20, 0, Math.PI * 2); ctx.fill();
             
-            // 頂部購買按鈕
             if (uiOkBtn.active && uiOkBtn.target) { 
                 ctx.fillStyle = '#32CD32'; ctx.fillRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); 
                 ctx.strokeStyle = '#006400'; ctx.lineWidth = 4; ctx.strokeRect(uiOkBtn.x, uiOkBtn.y, uiOkBtn.w, uiOkBtn.h); 
@@ -827,7 +851,19 @@
             }
         }
 
-        function loop(timestamp) { let rawDt = (timestamp - lastTime) / 1000; let dt = Math.max(0, Math.min(0.1, rawDt)); lastTime = timestamp; update(dt); draw(); requestAnimationFrame(loop); }
+        function loop(timestamp) { 
+            try {
+                let rawDt = (timestamp - lastTime) / 1000; let dt = Math.max(0, Math.min(0.1, rawDt)); 
+                lastTime = timestamp; update(dt); draw(); 
+            } catch (err) {
+                console.error(err);
+                ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'red'; ctx.font = '20px Arial';
+                ctx.fillText('遊戲發生錯誤 (已暫停)，請點擊右上角 🗑️ 按鈕清除存檔重置。', 50, canvas.height/2);
+                ctx.fillText(err.message, 50, canvas.height/2 + 30);
+            }
+            requestAnimationFrame(loop); 
+        }
         requestAnimationFrame(loop);
         function pSBC(p, c0) { let r, g, b, P, i, f, Math_round = Math.round, d = c0.length>5?c0:null; if (!d) return null; P = p < 0; i = parseInt; f = d.slice(1); P = p < 0 ? p * -1 : p; P = 1 - P; r = i(f.slice(0, 2), 16); g = i(f.slice(2, 4), 16); b = i(f.slice(4, 6), 16); r = Math_round(r * P); g = Math_round(g * P); b = Math_round(b * P); return "#" + (0x1000000 + (r * 0x10000) + (g * 0x100) + b).toString(16).slice(1); }
     </script>
