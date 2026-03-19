@@ -1,0 +1,588 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+
+// --- 莫蘭迪配色設定 ---
+const COLORS = {
+  background: '#F0EFEA', 
+  board: '#C7C4BE',      
+  empty: '#D8D5D0',      
+  textDark: '#5C5A56',   
+  textLight: '#FFFFFF',  
+  button: '#9FA5A9',     
+  buttonHover: '#868D92',
+  buttonDisabled: '#D0D0CE', 
+  modalBg: '#EAE8E3',    
+};
+
+const TILE_COLORS = {
+  2: { bg: '#EBE8E3', text: COLORS.textDark },
+  4: { bg: '#E0DCD5', text: COLORS.textDark },
+  8: { bg: '#D2A995', text: COLORS.textLight },
+  16: { bg: '#C8947C', text: COLORS.textLight },
+  32: { bg: '#B97C6A', text: COLORS.textLight },
+  64: { bg: '#A46153', text: COLORS.textLight },
+  128: { bg: '#D5C08E', text: COLORS.textLight },
+  256: { bg: '#D0B87D', text: COLORS.textLight },
+  512: { bg: '#CBAE6B', text: COLORS.textLight },
+  1024: { bg: '#C4A45A', text: COLORS.textLight },
+  2048: { bg: '#BFA04A', text: COLORS.textLight },
+};
+
+const getTileStyle = (val) => {
+  return TILE_COLORS[val] || { bg: '#8F8681', text: COLORS.textLight };
+};
+
+// --- 共用彈窗元件 ---
+const Modal = ({ isOpen, title, message, onConfirm, onCancel, hideCancel }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity">
+      <div 
+        className="rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-white/30"
+        style={{ backgroundColor: COLORS.modalBg }}
+      >
+        <h3 className="text-xl font-bold mb-3 tracking-wide" style={{ color: COLORS.textDark }}>{title}</h3>
+        <div className="mb-8 leading-relaxed whitespace-pre-line text-sm sm:text-base" style={{ color: COLORS.textDark, opacity: 0.85 }}>
+          {message}
+        </div>
+        <div className="flex justify-end gap-3">
+          {!hideCancel && (
+            <button 
+              onClick={onCancel} 
+              className="px-5 py-2.5 rounded-xl bg-white/50 hover:bg-white/80 transition-colors font-medium text-sm"
+              style={{ color: COLORS.textDark }}
+            >
+              取消
+            </button>
+          )}
+          <button 
+            onClick={onConfirm} 
+            className="px-5 py-2.5 rounded-xl text-white transition-colors shadow-sm font-medium text-sm hover:brightness-95 active:scale-95"
+            style={{ backgroundColor: COLORS.button }}
+          >
+            確定
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- SVG 圖示 ---
+const IconUndo = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>;
+const IconBomb = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="13" r="9"/><path d="M14.35 4.65 16.3 2.7a2.41 2.41 0 0 1 3.4 0l1.6 1.6a2.4 2.4 0 0 1 0 3.4l-1.95 1.95"/><path d="m22 2-1.5 1.5"/></svg>;
+const IconRestart = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>;
+
+export default function App() {
+  // --- 狀態管理 ---
+  // tiles 存放每個方塊的物件，包含 id, r(列), c(行), val, 等屬性以利 CSS 動畫
+  const [tiles, setTiles] = useState([]); 
+  const [score, setScore] = useState(0);
+  const [history, setHistory] = useState([]);
+  
+  const [undoCost, setUndoCost] = useState(100);
+  const [bombCost, setBombCost] = useState(100);
+  const [isBombMode, setIsBombMode] = useState(false);
+  
+  const [bestScore, setBestScore] = useState(() => {
+    const saved = localStorage.getItem('morandi2048_bestScore');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  const [bestTile, setBestTile] = useState(() => {
+    const saved = localStorage.getItem('morandi2048_bestTile');
+    return saved ? parseInt(saved, 10) : 0;
+  });
+
+  const [gameOver, setGameOver] = useState(false);
+  const [modalConfig, setModalConfig] = useState({ isOpen: false });
+  
+  const uuidRef = useRef(1); // 用於生成穩定的方塊 ID
+  const pointerStartRef = useRef(null);
+  const isAnimatingRef = useRef(false);
+
+  // --- 遊戲邏輯與初始化 ---
+
+  // 初次載入：顯示說明彈窗
+  useEffect(() => {
+    setModalConfig({
+      isOpen: true,
+      title: '遊戲規則說明',
+      message: '歡迎遊玩 2048！\n\n🔹 移動 1 次獲得 1 分。\n🔹 合成方塊會依據單次連鎖次數呈倍數加分 (2^次數)。\n🔹 合成出 8 以上的高階方塊會獲得額外積分。\n🔹 「退回」與「炸彈」初始需花費 100 分，每次使用成本皆會增加 100 分。\n🔹 每次移動後，會隨機產生數字 2 或 4 的方塊。',
+      hideCancel: true,
+      onConfirm: () => {
+        closeModal();
+        initializeGame();
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 建立虛擬網格以利邏輯計算
+  const buildGrid = (currentTiles) => {
+    let grid = Array(4).fill(null).map(() => Array(4).fill(null));
+    currentTiles.forEach(t => {
+      if (!t.isDeleting) grid[t.r][t.c] = t;
+    });
+    return grid;
+  };
+
+  const addRandomTile = (currentTiles) => {
+    const grid = buildGrid(currentTiles);
+    let emptyCells = [];
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (!grid[r][c]) emptyCells.push({ r, c });
+      }
+    }
+    if (emptyCells.length === 0) return currentTiles;
+    
+    const { r, c } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+    // 嚴格落實：隨機的 2 或 4 (各 50% 機率)
+    const val = Math.random() < 0.5 ? 2 : 4; 
+    const newTile = { id: uuidRef.current++, r, c, val, isNew: true, hasMerged: false };
+    
+    return [...currentTiles, newTile];
+  };
+
+  const initializeGame = useCallback(() => {
+    uuidRef.current = 1;
+    let initialTiles = addRandomTile([]);
+    initialTiles = addRandomTile(initialTiles);
+    
+    setTiles(initialTiles);
+    setScore(0);
+    setHistory([]);
+    setUndoCost(100);
+    setBombCost(100);
+    setIsBombMode(false);
+    setGameOver(false);
+  }, []);
+
+  const checkGameOver = (currentTiles) => {
+    const grid = buildGrid(currentTiles);
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (!grid[r][c]) return false; // 還有空格
+        const val = grid[r][c].val;
+        if (r < 3 && grid[r + 1][c] && grid[r + 1][c].val === val) return false;
+        if (c < 3 && grid[r][c + 1] && grid[r][c + 1].val === val) return false;
+      }
+    }
+    return true;
+  };
+
+  // --- 動畫流暢度：處理被合併消失的方塊 ---
+  useEffect(() => {
+    const deletingTiles = tiles.some(t => t.isDeleting);
+    if (deletingTiles) {
+      isAnimatingRef.current = true;
+      const timer = setTimeout(() => {
+        setTiles(prev => prev.filter(t => !t.isDeleting));
+        isAnimatingRef.current = false;
+      }, 150); // 對應 CSS 的 transition 時間
+      return () => clearTimeout(timer);
+    }
+  }, [tiles]);
+
+  // --- 歷史紀錄與最高合成更新 ---
+  useEffect(() => {
+    if (score > bestScore) {
+      setBestScore(score);
+      localStorage.setItem('morandi2048_bestScore', score);
+    }
+  }, [score, bestScore]);
+
+  useEffect(() => {
+    if (tiles.length === 0) return;
+    const currentMax = Math.max(...tiles.map(t => t.val));
+    if (currentMax > bestTile) {
+      setBestTile(currentMax);
+      localStorage.setItem('morandi2048_bestTile', currentMax);
+    }
+  }, [tiles, bestTile]);
+
+  // --- 核心移動邏輯 ---
+  const processMove = useCallback((direction) => {
+    if (gameOver || isBombMode || isAnimatingRef.current) return;
+
+    // 清除上一次的動畫標記，並過濾掉正在刪除的舊方塊
+    let nextTiles = tiles
+      .filter(t => !t.isDeleting)
+      .map(t => ({ ...t, isNew: false, hasMerged: false }));
+      
+    let hasMoved = false;
+    let totalMergeCount = 0;
+    let allMergedValues = [];
+
+    // 依據方向處理每一行/列
+    for (let i = 0; i < 4; i++) {
+      // 提取該行/列的所有方塊
+      let lineTiles = nextTiles.filter(t => (direction === 'LEFT' || direction === 'RIGHT' ? t.r === i : t.c === i));
+      
+      // 依據移動方向排序
+      lineTiles.sort((a, b) => {
+        let posA = direction === 'LEFT' || direction === 'RIGHT' ? a.c : a.r;
+        let posB = direction === 'LEFT' || direction === 'RIGHT' ? b.c : b.r;
+        return (direction === 'RIGHT' || direction === 'DOWN') ? posB - posA : posA - posB;
+      });
+
+      let targetPos = (direction === 'RIGHT' || direction === 'DOWN') ? 3 : 0;
+      const posDelta = (direction === 'RIGHT' || direction === 'DOWN') ? -1 : 1;
+      let prevTile = null;
+
+      for (let k = 0; k < lineTiles.length; k++) {
+        let t = lineTiles[k];
+
+        if (prevTile && prevTile.val === t.val && !prevTile.hasMerged) {
+          // 觸發合併
+          prevTile.val *= 2;
+          prevTile.hasMerged = true;
+          
+          // 更新即將消失方塊的座標，讓它能流暢滑動過去
+          if (direction === 'UP' || direction === 'DOWN') t.r = prevTile.r;
+          if (direction === 'LEFT' || direction === 'RIGHT') t.c = prevTile.c;
+          t.isDeleting = true; 
+
+          hasMoved = true;
+          totalMergeCount++;
+          allMergedValues.push(prevTile.val);
+          prevTile = null;
+        } else {
+          // 純粹移動
+          let currentPos = direction === 'LEFT' || direction === 'RIGHT' ? t.c : t.r;
+          if (currentPos !== targetPos) {
+            if (direction === 'LEFT' || direction === 'RIGHT') t.c = targetPos;
+            else t.r = targetPos;
+            hasMoved = true;
+          }
+          prevTile = t;
+          targetPos += posDelta;
+        }
+      }
+    }
+
+    if (!hasMoved) return;
+
+    // --- 精準計分機制 ---
+    let moveScore = 1; // 1. 移動 1 次得 1 分
+    if (totalMergeCount > 0) {
+      moveScore += Math.pow(2, totalMergeCount); // 2. 合成加分 (2^次數)
+    }
+    allMergedValues.forEach(val => {
+      if (val >= 8) {
+        moveScore += (Math.log2(val) - 2); // 3. 額外高階合成加分 (>=8)
+      }
+    });
+
+    // 儲存狀態以供退回
+    const cleanTilesForHistory = tiles.filter(t => !t.isDeleting).map(t => ({...t, isNew: false, hasMerged: false}));
+    setHistory(prev => [...prev, { tiles: cleanTilesForHistory, score, undoCost, bombCost }].slice(-50));
+
+    setScore(prev => prev + moveScore);
+    
+    const finalTiles = addRandomTile(nextTiles);
+    setTiles(finalTiles);
+
+    if (checkGameOver(finalTiles)) {
+      setGameOver(true);
+    }
+  }, [tiles, score, gameOver, isBombMode, undoCost, bombCost]);
+
+  // --- 操作監聽 ---
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+      }
+      switch (e.key) {
+        case 'ArrowUp': case 'w': processMove('UP'); break;
+        case 'ArrowDown': case 's': processMove('DOWN'); break;
+        case 'ArrowLeft': case 'a': processMove('LEFT'); break;
+        case 'ArrowRight': case 'd': processMove('RIGHT'); break;
+        default: break;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [processMove]);
+
+  // 滑動與觸控事件
+  const handlePointerDown = (e) => {
+    if (gameOver || modalConfig.isOpen) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    pointerStartRef.current = { x: clientX, y: clientY };
+  };
+
+  const handlePointerUp = (e) => {
+    if (!pointerStartRef.current || gameOver || isBombMode || modalConfig.isOpen) return;
+    
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+    
+    const dx = clientX - pointerStartRef.current.x;
+    const dy = clientY - pointerStartRef.current.y;
+
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 40) {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        processMove(dx > 0 ? 'RIGHT' : 'LEFT');
+      } else {
+        processMove(dy > 0 ? 'DOWN' : 'UP');
+      }
+    }
+    pointerStartRef.current = null;
+  };
+
+  // --- 互動功能與彈窗 ---
+  const openModal = (title, message, onConfirm) => {
+    setModalConfig({
+      isOpen: true, title, message, hideCancel: false,
+      onConfirm: () => { onConfirm(); closeModal(); }
+    });
+  };
+
+  const closeModal = () => setModalConfig(prev => ({ ...prev, isOpen: false }));
+
+  const handleRestartClick = () => {
+    openModal('重啟遊戲', '確定要重新開始遊戲嗎？目前的進度與積分將會重置。', initializeGame);
+  };
+
+  const handleUndoClick = () => {
+    if (history.length === 0) return;
+    if (score < undoCost) {
+      openModal('積分不足', `退回一步需要 ${undoCost} 分，目前積分不足。`, () => {});
+      return;
+    }
+    openModal('退回一步', `確定要花費 ${undoCost} 積分退回上一步嗎？`, () => {
+      const lastState = history[history.length - 1];
+      setTiles(lastState.tiles);
+      setScore(score - undoCost); 
+      setHistory(history.slice(0, -1));
+      setUndoCost(undoCost + 100); 
+      setGameOver(false);
+      setIsBombMode(false);
+    });
+  };
+
+  const handleBombClick = () => {
+    if (score < bombCost) {
+      openModal('積分不足', `使用炸彈需要 ${bombCost} 分，目前積分不足。`, () => {});
+      return;
+    }
+    openModal('啟用炸彈', `確定要花費 ${bombCost} 積分啟用炸彈嗎？\n啟用後請點擊盤面上的方塊以將其消除。`, () => {
+      setIsBombMode(true);
+    });
+  };
+
+  const handleCellClick = (tile) => {
+    if (!isBombMode || tile.isDeleting) return;
+
+    setHistory(prev => [...prev, { tiles: tiles.filter(t=>!t.isDeleting).map(t=>({...t})), score, undoCost, bombCost }]);
+    
+    const nextTiles = tiles.filter(t => t.id !== tile.id);
+    setTiles(nextTiles);
+    setScore(score - bombCost);
+    setBombCost(bombCost + 100);
+    setIsBombMode(false);
+    
+    if (gameOver && !checkGameOver(nextTiles)) {
+      setGameOver(false);
+    }
+  };
+
+  // 計算是否真的結束，或是還可以買道具解圍
+  const canUseUndo = history.length > 0 && score >= undoCost;
+  const canUseBomb = score >= bombCost;
+  const isTrulyGameOver = gameOver && !canUseUndo && !canUseBomb;
+  const isPromptingItem = gameOver && (canUseUndo || canUseBomb) && !isBombMode;
+
+  // --- 渲染畫面 ---
+  return (
+    <>
+      <style>{`
+        @keyframes popIn {
+          0% { transform: scale(0.5); opacity: 0; }
+          60% { transform: scale(1.1); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes popMerge {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.15); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+          100% { transform: scale(1); }
+        }
+        .animate-pop-in { animation: popIn 0.2s ease-out forwards; }
+        .animate-pop-merge { animation: popMerge 0.2s ease-in-out forwards; }
+      `}</style>
+      
+      <div 
+        className="min-h-screen flex flex-col items-center justify-center font-sans selection:bg-transparent overflow-hidden"
+        style={{ backgroundColor: COLORS.background }}
+      >
+        <div className="w-full max-w-[400px] px-4">
+          
+          {/* 頂部資訊區 */}
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight" style={{ color: COLORS.textDark }}>
+              2048
+            </h1>
+            <div className="flex gap-2 h-full items-stretch">
+              {/* 最高紀錄區 */}
+              <div className="flex flex-col justify-between gap-1">
+                <div className="px-3 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-3" style={{ backgroundColor: COLORS.board }}>
+                  <div className="text-[10px] sm:text-xs font-semibold opacity-80" style={{ color: COLORS.textDark }}>最高紀錄</div>
+                  <div className="text-xs sm:text-sm font-bold" style={{ color: COLORS.textLight }}>{bestScore}</div>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl shadow-sm flex items-center justify-between gap-3" style={{ backgroundColor: COLORS.board }}>
+                  <div className="text-[10px] sm:text-xs font-semibold opacity-80" style={{ color: COLORS.textDark }}>最高合成</div>
+                  <div className="text-xs sm:text-sm font-bold" style={{ color: COLORS.textLight }}>{bestTile}</div>
+                </div>
+              </div>
+              {/* 目前積分 */}
+              <div className="px-4 rounded-xl shadow-sm flex flex-col items-center justify-center min-w-[80px]" style={{ backgroundColor: COLORS.board }}>
+                <div className="text-xs font-semibold tracking-widest opacity-80" style={{ color: COLORS.textDark }}>目前積分</div>
+                <div className="text-xl sm:text-2xl font-bold" style={{ color: COLORS.textLight }}>{score}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 動作按鈕區 */}
+          <div className="flex justify-between gap-3 mb-6">
+            <button
+              onClick={handleRestartClick}
+              className="flex-1 flex flex-col items-center justify-center py-2.5 rounded-xl transition-all shadow-sm active:scale-95"
+              style={{ backgroundColor: COLORS.button, color: COLORS.textLight }}
+            >
+              <IconRestart />
+              <span className="text-xs mt-1 font-medium">重啟遊戲</span>
+            </button>
+
+            <button
+              onClick={handleUndoClick}
+              disabled={history.length === 0}
+              className="flex-1 flex flex-col items-center justify-center py-2.5 rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+              style={{ 
+                backgroundColor: history.length === 0 ? COLORS.buttonDisabled : COLORS.button,
+                color: history.length === 0 ? COLORS.textDark : COLORS.textLight
+              }}
+            >
+              <IconUndo />
+              <span className="text-xs mt-1 font-medium">退回 ({undoCost})</span>
+            </button>
+
+            <button
+              onClick={handleBombClick}
+              className={`flex-1 flex flex-col items-center justify-center py-2.5 rounded-xl transition-all shadow-sm active:scale-95 
+                ${isBombMode ? 'ring-4 ring-offset-2 ring-orange-200/50 scale-105' : ''}`}
+              style={{ backgroundColor: COLORS.button, color: COLORS.textLight }}
+            >
+              <IconBomb />
+              <span className="text-xs mt-1 font-medium">炸彈 ({bombCost})</span>
+            </button>
+          </div>
+
+          {/* 炸彈模式提示 */}
+          {isBombMode && (
+            <div className="mb-4 p-3 rounded-lg text-sm flex justify-between items-center animate-pulse shadow-sm" style={{ backgroundColor: '#D2A995', color: '#FFF' }}>
+              <span>💣 炸彈已啟用，請點擊方塊消除。</span>
+              <button onClick={() => setIsBombMode(false)} className="px-3 py-1 bg-black/20 rounded-md hover:bg-black/30 transition">取消</button>
+            </div>
+          )}
+
+          {/* 遊戲盤面容器 (維持完美比例與絕對定位) */}
+          <div 
+            className="relative w-full aspect-square rounded-2xl shadow-inner touch-none select-none overflow-hidden"
+            style={{ backgroundColor: COLORS.board }}
+            onMouseDown={handlePointerDown}
+            onMouseUp={handlePointerUp}
+            onTouchStart={handlePointerDown}
+            onTouchEnd={handlePointerUp}
+          >
+            {/* 真正遊戲結束遮罩 */}
+            {isTrulyGameOver && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm animate-in fade-in duration-300">
+                <h2 className="text-3xl font-bold mb-2 drop-shadow-md" style={{ color: COLORS.textLight }}>遊戲結束</h2>
+                <p className="mb-6 font-medium drop-shadow-sm" style={{ color: COLORS.textLight }}>積分已耗盡，沒有可移動的空間了</p>
+                <button 
+                  onClick={handleRestartClick}
+                  className="px-6 py-3 rounded-xl font-bold shadow-lg transform hover:scale-105 transition-all"
+                  style={{ backgroundColor: COLORS.textDark, color: COLORS.textLight }}
+                >
+                  再試一次
+                </button>
+              </div>
+            )}
+
+            {/* 提示使用道具遮罩 */}
+            {isPromptingItem && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/20 backdrop-blur-sm animate-in fade-in duration-300 pointer-events-none">
+                <h2 className="text-3xl font-bold mb-2 drop-shadow-md" style={{ color: COLORS.textLight }}>陷入僵局</h2>
+                <p className="mb-2 font-medium drop-shadow-sm text-lg" style={{ color: COLORS.textLight }}>盤面已經滿了！</p>
+                <p className="text-sm font-medium drop-shadow-sm opacity-90 px-6 text-center" style={{ color: COLORS.textLight }}>您還有積分，快點擊上方的「退回」或「炸彈」來解圍吧</p>
+              </div>
+            )}
+
+            {/* 背景網格 (固定不動) */}
+            {Array(16).fill(0).map((_, i) => {
+              const r = Math.floor(i / 4);
+              const c = i % 4;
+              return (
+                <div 
+                  key={`bg-${i}`}
+                  className="absolute rounded-xl"
+                  style={{
+                    width: '22.5%', height: '22.5%',
+                    left: `${2 + c * 24.5}%`, top: `${2 + r * 24.5}%`,
+                    backgroundColor: COLORS.empty
+                  }}
+                />
+              );
+            })}
+
+            {/* 前景活動方塊 (具備流暢 CSS 位移) */}
+            {tiles.map(tile => {
+              const style = getTileStyle(tile.val);
+              const isClickable = isBombMode && !tile.isDeleting;
+              
+              return (
+                <div 
+                  key={tile.id}
+                  onClick={() => handleCellClick(tile)}
+                  className={`
+                    absolute rounded-xl flex items-center justify-center font-bold shadow-sm
+                    transition-all duration-150 ease-in-out
+                    ${tile.isNew ? 'animate-pop-in' : ''}
+                    ${tile.hasMerged ? 'animate-pop-merge' : ''}
+                    ${tile.isDeleting ? 'z-0 opacity-0' : 'z-10'}
+                    ${isClickable ? 'cursor-pointer hover:scale-95 ring-4 ring-orange-300/50 z-20' : ''}
+                  `}
+                  style={{
+                    width: '22.5%', height: '22.5%',
+                    left: `${2 + tile.c * 24.5}%`, top: `${2 + tile.r * 24.5}%`,
+                    backgroundColor: style.bg, 
+                    color: style.text,
+                    fontSize: tile.val > 512 ? '1.5rem' : '2rem',
+                  }}
+                >
+                  {tile.val}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 text-center text-xs opacity-50 font-medium" style={{ color: COLORS.textDark }}>
+            滑動或使用方向鍵來合併方塊
+          </div>
+        </div>
+
+        {/* 獨立模態彈窗 */}
+        <Modal 
+          isOpen={modalConfig.isOpen}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          onConfirm={modalConfig.onConfirm}
+          onCancel={closeModal}
+          hideCancel={modalConfig.hideCancel}
+        />
+      </div>
+    </>
+  );
+}
