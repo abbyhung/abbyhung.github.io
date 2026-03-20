@@ -38,7 +38,6 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    // 從全域變數提取 React Hooks
     const { useState, useEffect, useCallback, useRef } = React;
 
     // --- 莫蘭迪配色設定 ---
@@ -138,7 +137,53 @@
       const pointerStartRef = useRef(null);
       const isAnimatingRef = useRef(false);
 
+      // --- 初始化與載入進度 ---
       useEffect(() => {
+        const savedState = localStorage.getItem('morandi2048_gameState');
+        
+        if (savedState) {
+          try {
+            // 若有存檔，直接載入進度，不顯示規則說明
+            const parsed = JSON.parse(savedState);
+            setTiles(parsed.tiles);
+            setScore(parsed.score);
+            setHistory(parsed.history);
+            setUndoCost(parsed.undoCost);
+            setBombCost(parsed.bombCost);
+            
+            // 確保新的方塊 ID 不會與存檔中的衝突
+            const maxId = Math.max(0, ...parsed.tiles.map(t => t.id));
+            uuidRef.current = maxId + 1;
+            
+            if (checkGameOver(parsed.tiles)) setGameOver(true);
+            return; // 成功載入就結束初始化
+          } catch (e) {
+            console.error('讀取存檔失敗，將重新初始化遊戲', e);
+          }
+        }
+        
+        // 若無存檔或存檔損毀，顯示規則說明並初始化新遊戲
+        showRulesAndInit();
+      }, []);
+
+      // --- 自動儲存進度 ---
+      useEffect(() => {
+        // 避免在剛初始化尚未產生方塊時儲存
+        if (tiles.length > 0) {
+          // 儲存前濾掉正在播放刪除動畫的舊方塊
+          const cleanTiles = tiles.filter(t => !t.isDeleting);
+          const stateToSave = {
+            tiles: cleanTiles,
+            score,
+            history,
+            undoCost,
+            bombCost
+          };
+          localStorage.setItem('morandi2048_gameState', JSON.stringify(stateToSave));
+        }
+      }, [tiles, score, history, undoCost, bombCost]);
+
+      const showRulesAndInit = () => {
         setModalConfig({
           isOpen: true,
           title: '遊戲規則說明',
@@ -149,7 +194,7 @@
             initializeGame();
           }
         });
-      }, []);
+      };
 
       const buildGrid = (currentTiles) => {
         let grid = Array(4).fill(null).map(() => Array(4).fill(null));
@@ -188,6 +233,9 @@
         setBombCost(100);
         setIsBombMode(false);
         setGameOver(false);
+        
+        // 清除舊存檔確保重新開始
+        localStorage.removeItem('morandi2048_gameState');
       }, []);
 
       const checkGameOver = (currentTiles) => {
@@ -579,7 +627,6 @@
       );
     }
 
-    // 將 App 元件渲染到畫面上
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
