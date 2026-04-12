@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Hub</title>
+    <title>Prompt Hub - 試算表自動同步版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -82,7 +82,7 @@
     <main class="flex-1 flex flex-col h-2/3 md:h-full relative">
         <header class="bg-white border-b border-slate-200 p-5 flex items-center justify-between shadow-sm z-10">
             <div class="flex flex-col">
-                <h2 id="currentProjectTitle" class="text-xl font-bold text-slate-800">載入中...</h2>
+                <h2 id="currentProjectTitle" class="text-xl font-bold text-slate-800">選取專案...</h2>
                 <p id="promptCount" class="text-sm text-slate-400">準備就緒</p>
             </div>
             <div class="flex gap-2">
@@ -112,7 +112,7 @@
             <h3 class="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2">
                 <i data-lucide="settings" class="w-5 h-5"></i> 系統設定
             </h3>
-            <p class="text-sm text-slate-400 mb-6">設定完成後，網頁開啟將自動從雲端同步。</p>
+            <p class="text-sm text-slate-400 mb-6">設定完成後，網頁將自動與雲端同步。</p>
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Web App URL</label>
@@ -134,7 +134,7 @@
             <div class="space-y-5 overflow-y-auto pr-2 custom-scrollbar">
                 <input type="hidden" id="editPromptId">
                 <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1.5">提示詞標題</label>
+                    <label class="block text-sm font-bold text-slate-700 mb-1.5">標題</label>
                     <input type="text" id="promptTitleInput" class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="例如：萬能寫作助手">
                 </div>
                 <div>
@@ -174,7 +174,7 @@
     <script>
         let db = {
             settings: { 
-                sheetsUrl: 'https://script.google.com/macros/s/AKfycbvij6-E0OmmdUR9-9nwSG_tlOwcXV0FLXNC4sVzvqFQpyIlURFXaSJ3GRHww4ueTV9/exec' 
+                sheetsUrl: 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec' 
             },
             projects: [{ id: 'p1', name: '預設專案', prompts: [] }],
             currentProjectId: 'p1'
@@ -206,7 +206,7 @@
             triggerAutoPush();
         }
 
-        // --- 同步邏輯 (JSONP 穩定版) ---
+        // --- 同步邏輯 (JSONP 沉穩版) ---
 
         function triggerAutoPush() {
             if (!db.settings.sheetsUrl) return;
@@ -222,20 +222,18 @@
             const url = db.settings.sheetsUrl;
             if (!url) return;
             try {
-                // 推送維持用 fetch(no-cors)，因為不需要讀取回傳值，no-cors 最穩
                 await fetch(url, {
                     method: 'POST',
                     mode: 'no-cors', 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(db)
                 });
-                updateLastSyncLabel('已同步');
+                updateLastSyncLabel('已同步雲端');
             } catch (err) {
                 updateLastSyncLabel('同步失敗');
             }
         }
 
-        // 使用 JSONP 抓取雲端資料
         function manualSync() {
             const url = db.settings.sheetsUrl;
             if (!url) return showToast('請先設定試算表 URL', true);
@@ -243,11 +241,29 @@
             document.getElementById('autoSyncIndicator').classList.remove('hidden');
             updateLastSyncLabel('讀取中...');
 
-            // 定義全域回呼函數
-            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+            const callbackName = 'jsonp_callback_' + Math.round(1000000 * Math.random());
+            let timeoutTriggered = false;
+
+            // 建立超時處理
+            const timeoutId = setTimeout(() => {
+                timeoutTriggered = true;
+                if (window[callbackName]) {
+                    delete window[callbackName];
+                    const scriptEl = document.getElementById(callbackName);
+                    if (scriptEl) scriptEl.remove();
+                    updateLastSyncLabel('載入超時');
+                    showToast('從雲端抓取資料超時，請檢查腳本是否部署正確', true);
+                    document.getElementById('autoSyncIndicator').classList.add('hidden');
+                }
+            }, 10000); // 10 秒超時
+
             window[callbackName] = function(cloudData) {
+                if (timeoutTriggered) return;
+                clearTimeout(timeoutId);
+                
                 delete window[callbackName];
-                document.body.removeChild(script);
+                const scriptEl = document.getElementById(callbackName);
+                if (scriptEl) scriptEl.remove();
 
                 if (cloudData && Array.isArray(cloudData.projects)) {
                     if (cloudData.projects.length > 0) {
@@ -257,26 +273,28 @@
                         
                         localStorage.setItem('prompt_hub_sync_v2', JSON.stringify(db));
                         renderUI();
-                        showToast('已從雲端載入最新訊息');
+                        showToast('成功載入雲端資料');
                     }
                     updateLastSyncLabel('雲端同步中');
                 } else {
-                    showToast('雲端尚未有資料', false);
+                    showToast('雲端目前尚無資料', false);
                     updateLastSyncLabel('無資料');
                 }
                 document.getElementById('autoSyncIndicator').classList.add('hidden');
             };
 
-            // 建立 Script 標籤進行請求
             const script = document.createElement('script');
+            script.id = callbackName;
             const sep = url.indexOf('?') === -1 ? '?' : '&';
             script.src = `${url}${sep}callback=${callbackName}&t=${Date.now()}`;
             
             script.onerror = function() {
+                if (timeoutTriggered) return;
+                clearTimeout(timeoutId);
                 delete window[callbackName];
-                document.body.removeChild(script);
-                updateLastSyncLabel('讀取失敗');
-                showToast('連線失敗，請檢查 URL', true);
+                script.remove();
+                updateLastSyncLabel('連線失敗');
+                showToast('JSONP 連線錯誤，請確認 GAS 網址與權限設定', true);
                 document.getElementById('autoSyncIndicator').classList.add('hidden');
             };
 
@@ -315,7 +333,7 @@
             if (!project) return;
             
             document.getElementById('currentProjectTitle').innerText = project.name;
-            document.getElementById('promptCount').innerText = `目前有 ${project.prompts ? project.prompts.length : 0} 組內容`;
+            document.getElementById('promptCount').innerText = `目前有 ${project.prompts ? project.prompts.length : 0} 組訊息`;
             
             const container = document.getElementById('promptContainer');
             const empty = document.getElementById('emptyState');
@@ -409,7 +427,7 @@
             saveDB();
             renderUI();
             closeModal('promptModal');
-            showToast('已儲存並同步中');
+            showToast('已儲存內容並啟動自動同步');
         }
 
         function saveProject() {
@@ -421,6 +439,7 @@
             saveDB();
             renderUI();
             closeModal('projectModal');
+            showToast('專案已建立');
         }
 
         function deletePrompt(id) {
@@ -429,6 +448,7 @@
                 project.prompts = project.prompts.filter(p => p.id !== id);
                 saveDB();
                 renderUI();
+                showToast('已移除訊息');
             }
         }
 
@@ -439,6 +459,7 @@
                 db.currentProjectId = db.projects[0].id;
                 saveDB();
                 renderUI();
+                showToast('專案已移除');
             }
         }
 
