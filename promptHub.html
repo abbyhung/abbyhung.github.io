@@ -251,54 +251,30 @@
         }
 
         // 採用與您控制台測試完全一致的 JSONP 邏輯
-        function manualSync() {
-            const url = db.settings.sheetsUrl;
-            if (!url || url.length < 10) return;
-
-            document.getElementById('autoSyncIndicator').classList.remove('hidden');
-            updateLastSyncLabel('讀取中...');
-
-            // 使用與測試腳本相同的 callback 命名風格
-            const callbackName = 'jsonp_sync_' + Date.now();
-            
-            window[callbackName] = function(cloudData) {
-                console.log("✅ [成功] 透過 manualSync 接收到 GAS 資料：", cloudData);
+        function manualSync() {(function() {
+            const gasUrl = 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec';
+            const callbackName = 'debug_callback_' + Date.now();
+        
+            // 1. 定義接收資料的訊息處理函數
+            window[callbackName] = function(data) {
+                console.log("✅ [成功] 成功接收到 GAS 資料：", data);
                 delete window[callbackName];
-                const scriptEl = document.getElementById(callbackName);
-                if (scriptEl) scriptEl.remove();
-
-                if (cloudData && Array.isArray(cloudData.projects)) {
-                    if (cloudData.projects.length > 0) {
-                        db.projects = cloudData.projects;
-                        const exists = db.projects.find(p => p.id === db.currentProjectId);
-                        if (!exists) db.currentProjectId = db.projects[0].id;
-                        
-                        localStorage.setItem('prompt_hub_sync_v2', JSON.stringify(db));
-                        renderUI();
-                        showToast('已更新雲端最新訊息');
-                    } else {
-                        showToast('雲端目前尚無資料');
-                    }
-                    updateLastSyncLabel('雲端同步中');
-                }
-                document.getElementById('autoSyncIndicator').classList.add('hidden');
+                document.body.removeChild(script);
             };
-
+        
+            // 2. 建立 Script 標籤發送請求
             const script = document.createElement('script');
-            script.id = callbackName;
-            const sep = url.indexOf('?') === -1 ? '?' : '&';
-            script.src = `${url}${sep}callback=${callbackName}&t=${Date.now()}`;
+            script.src = `${gasUrl}?callback=${callbackName}&t=${Date.now()}`;
             
             script.onerror = function() {
-                console.error("❌ [失敗] manualSync 無法連線至 GAS");
+                console.error("❌ [失敗] 無法連線至 GAS，請檢查部署網址或權限設定是否為「所有人」。");
                 delete window[callbackName];
-                script.remove();
-                updateLastSyncLabel('連線失敗');
-                showToast('連線失敗，請檢查網址或權限', true);
-                document.getElementById('autoSyncIndicator').classList.add('hidden');
+                document.body.removeChild(script);
             };
-
+        
             document.body.appendChild(script);
+            console.log("🚀 同步請求發送中，請稍候...");
+        })();
         }
 
         function updateLastSyncLabel(status) {
