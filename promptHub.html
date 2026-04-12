@@ -211,6 +211,29 @@
             if (db.settings.sheetsUrl) {
                 await manualSync();
             }
+
+                const gasUrl = 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec';
+    const callbackName = 'debug_callback_' + Date.now();
+
+    // 1. 定義接收資料的訊息處理函數
+    window[callbackName] = function(data) {
+        console.log("✅ [成功] 成功接收到 GAS 資料：", data);
+        delete window[callbackName];
+        document.body.removeChild(script);
+    };
+
+    // 2. 建立 Script 標籤發送請求
+    const script = document.createElement('script');
+    script.src = `${gasUrl}?callback=${callbackName}&t=${Date.now()}`;
+    
+    script.onerror = function() {
+        console.error("❌ [失敗] 無法連線至 GAS，請檢查部署網址或權限設定是否為「所有人」。");
+        delete window[callbackName];
+        document.body.removeChild(script);
+    };
+
+    document.body.appendChild(script);
+    console.log("🚀 同步請求發送中，請稍候...");
         };
 
         function saveDB() {
@@ -535,6 +558,7 @@
             t.classList.replace('opacity-0', 'opacity-100');
             setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 3000);
         }
+        
     </script>
 </body>
 </html>
