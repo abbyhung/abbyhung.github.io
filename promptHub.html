@@ -253,13 +253,32 @@
         // 採用與您控制台測試完全一致的 JSONP 邏輯
         function manualSync() {(function() {
             const gasUrl = 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec';
-            const callbackName = 'debug_callback_' + Date.now();
+            // 使用與測試腳本完全相同的 JSONP 邏輯
+            const callbackName = 'jsonp_sync_' + Date.now();
+            console.log("🚀 [同步啟動] 目標網址：" + url);
+            document.getElementById('autoSyncIndicator').classList.remove('hidden');
+            updateLastSyncLabel('讀取中...');
         
             // 1. 定義接收資料的訊息處理函數
-            window[callbackName] = function(data) {
-                console.log("✅ [成功] 成功接收到 GAS 資料：", data);
+            window[callbackName] = function(cloudData) {
+                console.log("✅ [成功] 雲端資料已接收：", cloudData);
                 delete window[callbackName];
-                document.body.removeChild(script);
+                const scriptEl = document.getElementById(callbackName);
+                if (scriptEl) scriptEl.remove();
+
+                if (cloudData && Array.isArray(cloudData.projects)) {
+                    if (cloudData.projects.length > 0) {
+                        db.projects = cloudData.projects;
+                        const exists = db.projects.find(p => p.id === db.currentProjectId);
+                        if (!exists) db.currentProjectId = db.projects[0].id;
+                        
+                        localStorage.setItem('prompt_hub_sync_v2', JSON.stringify(db));
+                        renderUI();
+                        showToast('成功載入雲端資料');
+                    }
+                    updateLastSyncLabel('雲端同步中');
+                }
+                document.getElementById('autoSyncIndicator').classList.add('hidden');
             };
         
             // 2. 建立 Script 標籤發送請求
