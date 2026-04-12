@@ -175,7 +175,10 @@
     <script>
         const LATEST_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec';
 
-        // 初始狀態為空，等待雲端抓取
+        // 管理 SortableJS 實體的全域變數，避免重複綁定
+        let projectSortable = null;
+        let promptSortable = null;
+
         let db = {
             settings: { sheetsUrl: LATEST_SHEETS_URL },
             projects: [],
@@ -185,7 +188,6 @@
         let syncTimer = null;
 
         window.onload = async () => {
-            // 從 LocalStorage 僅讀取設定資訊
             const saved = localStorage.getItem('prompt_hub_sync_v2');
             if (saved) {
                 try { 
@@ -194,75 +196,106 @@
                 } catch(e) { console.error(e); }
             }
             
-            // 自動修正舊網址，確保抓取成功
             if (!db.settings.sheetsUrl || !db.settings.sheetsUrl.includes('AKfycbyAr')) {
                 db.settings.sheetsUrl = LATEST_SHEETS_URL;
             }
             
             document.getElementById('sheetsUrlInput').value = db.settings.sheetsUrl;
             
-            // 初始執行一次雲端抓取，這是唯一的資料來源
             manualSync();
             lucide.createIcons();
         };
 
-        // --- 核心邏輯：雲端真理同步 ---
+        // --- 核心邏輯：雙向同步與排序初始化 ---
 
         function manualSync() {
-            const gasUrl = db.settings.sheetsUrl || LATEST_SHEETS_URL;
-            if (!gasUrl || gasUrl.length < 10) return;
-
-            const callbackName = 'jsonp_sync_' + Date.now();
-            console.log("🚀 [同步啟動] 正在向雲端索取真理資料...");
+            (function() {
+                const gasUrl = db.settings.sheetsUrl || LATEST_SHEETS_URL;
+                const callbackName = 'jsonp_sync_' + Date.now();
+                
+                console.log("🚀 [同步啟動] 目標網址：" + gasUrl);
+                document.getElementById('autoSyncIndicator').classList.remove('hidden');
+                updateLastSyncLabel('讀取中...');
             
-            document.getElementById('autoSyncIndicator').classList.remove('hidden');
-            updateLastSyncLabel('讀取中...');
+                window[callbackName] = function(cloudData) {
+                    console.log("✅ [成功] 雲端資料已接收");
+                    delete window[callbackName];
+                    const scriptEl = document.getElementById(callbackName);
+                    if (scriptEl) scriptEl.remove();
 
-            // 定義接收資料的訊息處理函數
-            window[callbackName] = function(cloudData) {
-                console.log("✅ [成功] 已接收雲端最新狀態");
-                delete window[callbackName];
-                const scriptEl = document.getElementById(callbackName);
-                if (scriptEl) scriptEl.remove();
-
-                if (cloudData && Array.isArray(cloudData.projects)) {
-                    // 【關鍵】直接覆蓋本地狀態，確保順序完全依照雲端
-                    db.projects = cloudData.projects;
-                    
-                    if (db.projects.length > 0) {
-                        // 嘗試維持目前的專案選取，若不存在則選第一個
-                        if (!db.currentProjectId || !db.projects.find(p => p.id === db.currentProjectId)) {
-                            db.currentProjectId = db.projects[0].id;
+                    if (cloudData && Array.isArray(cloudData.projects)) {
+                        db.projects = cloudData.projects;
+                        if (db.projects.length > 0) {
+                            if (!db.currentProjectId || !db.projects.find(p => p.id === db.currentProjectId)) {
+                                db.currentProjectId = db.projects[0].id;
+                            }
+                        } else {
+                            db.projects = [{ id: 'p1', name: '預設專案', prompts: [] }];
+                            db.currentProjectId = 'p1';
                         }
-                    } else {
-                        // 若雲端全空，初始化一個預設專案
-                        db.projects = [{ id: 'p1', name: '預設專案', prompts: [] }];
-                        db.currentProjectId = 'p1';
+                        renderUI();
+                        updateLastSyncLabel('雲端同步中');
                     }
-                    
-                    renderUI();
-                    updateLastSyncLabel('雲端同步中');
-                }
-                document.getElementById('autoSyncIndicator').classList.add('hidden');
-            };
-
-            const script = document.createElement('script');
-            script.id = callbackName;
-            const sep = gasUrl.indexOf('?') === -1 ? '?' : '&';
-            script.src = `${gasUrl}${sep}callback=${callbackName}&t=${Date.now()}`;
+                    document.getElementById('autoSyncIndicator').classList.add('hidden');
+                };
             
-            script.onerror = function() {
-                console.error("❌ [失敗] 無法連線至雲端");
-                delete window[callbackName];
-                script.remove();
-                updateLastSyncLabel('連線失敗');
-                document.getElementById('autoSyncIndicator').classList.add('hidden');
-            };
-
-            document.body.appendChild(script);
+                const script = document.createElement('script');
+                script.id = callbackName;
+                const sep = gasUrl.indexOf('?') === -1 ? '?' : '&';
+                script.src = `${gasUrl}${sep}callback=${callbackName}&t=${Date.now()}`;
+                
+                script.onerror = function() {
+                    console.error("❌ [失敗] 無法連線至 GAS");
+                    delete window[callbackName];
+                    const scriptEl = document.getElementById(callbackName);
+                    if (scriptEl) scriptEl.remove();
+                    updateLastSyncLabel('連線失敗');
+                    document.getElementById('autoSyncIndicator').classList.add('hidden');
+                };
+            
+                document.body.appendChild(script);
+            })();
         }
 
-        // 推送到雲端
+        // 修改處：將 Sortable 初始化邏輯封裝，並在每次 Render 後重新呼叫
+        function initSortable() {
+            // 1. 清理舊實體
+            if (projectSortable) projectSortable.destroy();
+            if (promptSortable) promptSortable.destroy();
+
+            // 2. 初始化提示詞排序 (右側)
+            const promptEl = document.getElementById('promptContainer');
+            if (promptEl) {
+                promptSortable = Sortable.create(promptEl, {
+                    animation: 250,
+                    handle: '.drag-handle',
+                    ghostClass: 'sortable-ghost',
+                    onEnd: (evt) => {
+                        const project = db.projects.find(p => p.id === db.currentProjectId);
+                        if (!project) return;
+                        // 更新陣列順序
+                        const [moved] = project.prompts.splice(evt.oldIndex, 1);
+                        project.prompts.splice(evt.newIndex, 0, moved);
+                        triggerAutoPush();
+                    }
+                });
+            }
+
+            // 3. 初始化專案排序 (左側)
+            const projectEl = document.getElementById('projectList');
+            if (projectEl) {
+                projectSortable = Sortable.create(projectEl, {
+                    animation: 250,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: (evt) => {
+                        const [moved] = db.projects.splice(evt.oldIndex, 1);
+                        db.projects.splice(evt.newIndex, 0, moved);
+                        triggerAutoPush();
+                    }
+                });
+            }
+        }
+
         function triggerAutoPush() {
             if (!db.settings.sheetsUrl) return;
             document.getElementById('autoSyncIndicator').classList.remove('hidden');
@@ -270,23 +303,21 @@
             syncTimer = setTimeout(async () => {
                 await performPush();
                 document.getElementById('autoSyncIndicator').classList.add('hidden');
-            }, 1500); // 縮短為 1.5 秒
+            }, 1500);
         }
 
         async function performPush() {
             const url = db.settings.sheetsUrl;
             if (!url) return;
             try {
-                // 將目前狀態存入 LocalStorage 作為備份
                 localStorage.setItem('prompt_hub_sync_v2', JSON.stringify(db));
-                
                 await fetch(url, {
                     method: 'POST',
                     mode: 'no-cors', 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(db)
                 });
-                updateLastSyncLabel('已同步至雲端');
+                updateLastSyncLabel('已同步雲端');
             } catch (err) {
                 updateLastSyncLabel('寫入失敗');
             }
@@ -299,24 +330,7 @@
             if (el) el.innerText = `${status} ${timeStr}`;
         }
 
-        // --- 修正：準備動作 ---
-
-        function prepareAddPrompt() {
-            document.getElementById('editPromptId').value = '';
-            document.getElementById('promptModalTitle').innerText = '新增提示詞';
-            ['promptTitleInput', 'promptContentInput', 'promptNoteInput'].forEach(i => {
-                const el = document.getElementById(i);
-                if (el) el.value = '';
-            });
-            openModal('promptModal');
-        }
-
-        function prepareAddProject() {
-            document.getElementById('projectNameInput').value = '';
-            openModal('projectModal');
-        }
-
-        // --- UI 渲染與互動 ---
+        // --- UI 渲染與操作 ---
 
         function renderUI() {
             const list = document.getElementById('projectList');
@@ -339,11 +353,7 @@
             });
 
             const project = db.projects.find(p => p.id === db.currentProjectId) || db.projects[0];
-            if (!project) {
-                document.getElementById('currentProjectTitle').innerText = "尚未有專案";
-                document.getElementById('promptCount').innerText = "請點擊左側新增";
-                return;
-            }
+            if (!project) return;
             
             document.getElementById('currentProjectTitle').innerText = project.name;
             document.getElementById('promptCount').innerText = `目前有 ${project.prompts ? project.prompts.length : 0} 組訊息`;
@@ -386,7 +396,10 @@
                     container.appendChild(card);
                 });
             }
+            
+            // 重要：重新生成圖示並重新啟動排序器
             lucide.createIcons();
+            initSortable();
         }
 
         window.toggleContent = (id) => {
@@ -403,27 +416,20 @@
             lucide.createIcons();
         };
 
-        function initSortable() {
-            Sortable.create(document.getElementById('promptContainer'), {
-                animation: 250, handle: '.drag-handle', ghostClass: 'sortable-ghost',
-                onEnd: (evt) => {
-                    const project = db.projects.find(p => p.id === db.currentProjectId);
-                    const [moved] = project.prompts.splice(evt.oldIndex, 1);
-                    project.prompts.splice(evt.newIndex, 0, moved);
-                    triggerAutoPush(); // 排序變動後立即推送到雲端
-                }
+        function prepareAddPrompt() {
+            document.getElementById('editPromptId').value = '';
+            document.getElementById('promptModalTitle').innerText = '新增提示詞';
+            ['promptTitleInput', 'promptContentInput', 'promptNoteInput'].forEach(i => {
+                const el = document.getElementById(i);
+                if (el) el.value = '';
             });
-            Sortable.create(document.getElementById('projectList'), {
-                animation: 250, ghostClass: 'sortable-ghost',
-                onEnd: (evt) => {
-                    const [moved] = db.projects.splice(evt.oldIndex, 1);
-                    db.projects.splice(evt.newIndex, 0, moved);
-                    triggerAutoPush();
-                }
-            });
+            openModal('promptModal');
         }
 
-        // --- 訊息操作 ---
+        function prepareAddProject() {
+            document.getElementById('projectNameInput').value = '';
+            openModal('projectModal');
+        }
 
         function savePrompt() {
             const title = document.getElementById('promptTitleInput').value.trim();
@@ -443,8 +449,8 @@
             
             renderUI();
             closeModal('promptModal');
-            triggerAutoPush(); // 儲存後同步
-            showToast('已儲存並啟動雲端同步');
+            triggerAutoPush();
+            showToast('已同步至雲端');
         }
 
         function saveProject() {
@@ -477,23 +483,21 @@
             }
         }
 
-        // --- 設定操作 ---
-
         function saveSettings() {
             db.settings.sheetsUrl = document.getElementById('sheetsUrlInput').value.trim();
             localStorage.setItem('prompt_hub_sync_v2', JSON.stringify(db));
             closeModal('settingsModal');
             manualSync();
-            showToast('網址已儲存並重新同步');
+            showToast('網址已更新');
         }
 
         function resetUrlToDefault() {
-            if (confirm('確定要捨棄手動輸入的網址，改用代碼中最新的預設網址嗎？')) {
+            if (confirm('確定要強制重置為最新代碼預設網址嗎？')) {
                 db.settings.sheetsUrl = LATEST_SHEETS_URL;
                 document.getElementById('sheetsUrlInput').value = LATEST_SHEETS_URL;
                 localStorage.setItem('prompt_hub_sync_v2', JSON.stringify(db));
                 manualSync();
-                showToast('已重置為最新網址');
+                showToast('已重置為預設網址');
             }
         }
 
@@ -506,7 +510,7 @@
             el.select();
             document.execCommand('copy');
             document.body.removeChild(el);
-            showToast('內容已複製到剪貼簿');
+            showToast('內容已複製');
         }
 
         function editPrompt(id) {
@@ -530,16 +534,16 @@
 
         window.openModal = (id) => {
             const m = document.getElementById(id);
-            if (!m) return;
-            m.classList.remove('hidden');
+            if (m) m.classList.remove('hidden');
         };
 
         window.closeModal = (id) => {
             const m = document.getElementById(id);
-            if (!m) return;
-            m.classList.add('hidden');
-            if (id === 'promptModal') {
-                document.getElementById('editPromptId').value = '';
+            if (m) {
+                m.classList.add('hidden');
+                if (id === 'promptModal') {
+                    document.getElementById('editPromptId').value = '';
+                }
             }
         };
 
