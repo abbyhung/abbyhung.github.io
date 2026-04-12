@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Hub - 試算表自動同步版</title>
+    <title>Prompt Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -121,13 +121,13 @@
                 <div class="p-3 bg-amber-50 border border-amber-100 rounded-xl">
                     <p class="text-xs text-amber-800 leading-relaxed">
                         <strong>沉穩提醒：</strong><br>
-                        如果修改 HTML 代碼後網址沒變，請點擊下方的「重置並使用代碼預設網址」來強制更新本地記憶。
+                        GitHub 會記憶舊網址。如果您修改了代碼但網址沒變，請點擊下方按鈕強制重置。
                     </p>
                 </div>
             </div>
             <div class="mt-8 flex flex-col gap-2">
                 <button onclick="saveSettings()" class="w-full py-3 bg-indigo-600 text-white font-medium rounded-xl shadow-md">儲存目前網址</button>
-                <button onclick="resetUrlToDefault()" class="w-full py-2 text-slate-500 text-sm hover:underline">重置並使用代碼預設網址</button>
+                <button onclick="resetUrlToDefault()" class="w-full py-2 text-slate-500 text-sm hover:underline">強制重置為代碼預設網址</button>
                 <button onclick="closeModal('settingsModal')" class="w-full py-2 text-slate-400 text-sm">關閉</button>
             </div>
         </div>
@@ -179,7 +179,7 @@
     </div>
 
     <script>
-        // 本次修正：預設 URL 已換成您測試成功的 IHg 網址
+        // 設定您目前測試成功的正確網址
         const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec';
 
         let db = {
@@ -195,45 +195,26 @@
             if (saved) {
                 try { 
                     const parsed = JSON.parse(saved);
-                    // 如果本地記憶有值，則覆蓋預設值
-                    if (parsed.settings) db = parsed;
-                } catch(e) { console.error(e); }
+                    // 檢查 settings 是否有效
+                    if (parsed.settings && parsed.settings.sheetsUrl) {
+                        db = parsed;
+                    } else {
+                        db.settings.sheetsUrl = DEFAULT_SHEETS_URL;
+                    }
+                } catch(e) { console.error("LocalStorage Parse Error", e); }
             }
             
-            // 畫面顯示當前使用的 URL
             document.getElementById('sheetsUrlInput').value = db.settings.sheetsUrl;
             
             renderUI();
             initSortable();
             lucide.createIcons();
 
-            // 自動載入
+            // 初始執行一次同步
             if (db.settings.sheetsUrl) {
-                await manualSync();
+                console.log("🚀 [初始化] 啟動雲端抓取任務，目標網址：" + db.settings.sheetsUrl);
+                manualSync();
             }
-
-                const gasUrl = 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec';
-    const callbackName = 'debug_callback_' + Date.now();
-
-    // 1. 定義接收資料的訊息處理函數
-    window[callbackName] = function(data) {
-        console.log("✅ [成功] 成功接收到 GAS 資料：", data);
-        delete window[callbackName];
-        document.body.removeChild(script);
-    };
-
-    // 2. 建立 Script 標籤發送請求
-    const script = document.createElement('script');
-    script.src = `${gasUrl}?callback=${callbackName}&t=${Date.now()}`;
-    
-    script.onerror = function() {
-        console.error("❌ [失敗] 無法連線至 GAS，請檢查部署網址或權限設定是否為「所有人」。");
-        delete window[callbackName];
-        document.body.removeChild(script);
-    };
-
-    document.body.appendChild(script);
-    console.log("🚀 同步請求發送中，請稍候...");
         };
 
         function saveDB() {
@@ -241,7 +222,7 @@
             triggerAutoPush();
         }
 
-        // --- 同步邏輯 (JSONP 沉穩版) ---
+        // --- 同步邏輯 ---
 
         function triggerAutoPush() {
             if (!db.settings.sheetsUrl) return;
@@ -257,7 +238,6 @@
             const url = db.settings.sheetsUrl;
             if (!url) return;
             try {
-                // 推送採用 no-cors 模式，最穩定
                 await fetch(url, {
                     method: 'POST',
                     mode: 'no-cors', 
@@ -270,31 +250,19 @@
             }
         }
 
+        // 採用與您控制台測試完全一致的 JSONP 邏輯
         function manualSync() {
             const url = db.settings.sheetsUrl;
-            if (!url) return;
+            if (!url || url.length < 10) return;
 
             document.getElementById('autoSyncIndicator').classList.remove('hidden');
             updateLastSyncLabel('讀取中...');
 
-            const callbackName = 'jsonp_callback_' + Math.round(1000000 * Math.random());
-            let timeoutTriggered = false;
-
-            const timeoutId = setTimeout(() => {
-                timeoutTriggered = true;
-                if (window[callbackName]) {
-                    delete window[callbackName];
-                    const scriptEl = document.getElementById(callbackName);
-                    if (scriptEl) scriptEl.remove();
-                    updateLastSyncLabel('載入超時');
-                    document.getElementById('autoSyncIndicator').classList.add('hidden');
-                }
-            }, 8000);
-
+            // 使用與測試腳本相同的 callback 命名風格
+            const callbackName = 'jsonp_sync_' + Date.now();
+            
             window[callbackName] = function(cloudData) {
-                if (timeoutTriggered) return;
-                clearTimeout(timeoutId);
-                
+                console.log("✅ [成功] 透過 manualSync 接收到 GAS 資料：", cloudData);
                 delete window[callbackName];
                 const scriptEl = document.getElementById(callbackName);
                 if (scriptEl) scriptEl.remove();
@@ -307,7 +275,9 @@
                         
                         localStorage.setItem('prompt_hub_sync_v2', JSON.stringify(db));
                         renderUI();
-                        showToast('成功載入雲端資料');
+                        showToast('已更新雲端最新訊息');
+                    } else {
+                        showToast('雲端目前尚無資料');
                     }
                     updateLastSyncLabel('雲端同步中');
                 }
@@ -320,11 +290,11 @@
             script.src = `${url}${sep}callback=${callbackName}&t=${Date.now()}`;
             
             script.onerror = function() {
-                if (timeoutTriggered) return;
-                clearTimeout(timeoutId);
+                console.error("❌ [失敗] manualSync 無法連線至 GAS");
                 delete window[callbackName];
                 script.remove();
                 updateLastSyncLabel('連線失敗');
+                showToast('連線失敗，請檢查網址或權限', true);
                 document.getElementById('autoSyncIndicator').classList.add('hidden');
             };
 
@@ -334,28 +304,32 @@
         function updateLastSyncLabel(status) {
             const now = new Date();
             const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            document.getElementById('lastSyncTime').innerText = `${status} ${timeStr}`;
+            const el = document.getElementById('lastSyncTime');
+            if (el) el.innerText = `${status} ${timeStr}`;
         }
 
-        // --- UI 操作 ---
+        // --- 設定操作 ---
 
         function saveSettings() {
-            db.settings.sheetsUrl = document.getElementById('sheetsUrlInput').value.trim();
+            const inputUrl = document.getElementById('sheetsUrlInput').value.trim();
+            db.settings.sheetsUrl = inputUrl;
             saveDB();
             closeModal('settingsModal');
             manualSync();
-            showToast('網址已儲存');
+            showToast('網址已更新並重試同步');
         }
 
         function resetUrlToDefault() {
-            if (confirm('確定要捨棄目前手動輸入的網址，改用 HTML 代碼預設的網址嗎？')) {
+            if (confirm('確定要強制重置為代碼中預設的網址嗎？（這將解決 GitHub 記憶舊網址的問題）')) {
                 db.settings.sheetsUrl = DEFAULT_SHEETS_URL;
                 document.getElementById('sheetsUrlInput').value = DEFAULT_SHEETS_URL;
                 saveDB();
                 manualSync();
-                showToast('已重置為代碼預設網址');
+                showToast('已重置為預設網址');
             }
         }
+
+        // --- UI 渲染與互動 ---
 
         function renderUI() {
             const list = document.getElementById('projectList');
@@ -381,7 +355,7 @@
             if (!project) return;
             
             document.getElementById('currentProjectTitle').innerText = project.name;
-            document.getElementById('promptCount').innerText = `目前有 ${project.prompts ? project.prompts.length : 0} 組訊息`;
+            document.getElementById('promptCount').innerText = `目前有 ${project.prompts ? project.prompts.length : 0} 組內容`;
             
             const container = document.getElementById('promptContainer');
             const empty = document.getElementById('emptyState');
@@ -475,6 +449,7 @@
             saveDB();
             renderUI();
             closeModal('promptModal');
+            showToast('已儲存訊息並同步中');
         }
 
         function saveProject() {
@@ -486,6 +461,7 @@
             saveDB();
             renderUI();
             closeModal('projectModal');
+            showToast('專案已建立');
         }
 
         function deletePrompt(id) {
@@ -494,6 +470,7 @@
                 project.prompts = project.prompts.filter(p => p.id !== id);
                 saveDB();
                 renderUI();
+                showToast('已移除訊息');
             }
         }
 
@@ -504,6 +481,7 @@
                 db.currentProjectId = db.projects[0].id;
                 saveDB();
                 renderUI();
+                showToast('專案已移除');
             }
         }
 
@@ -516,7 +494,7 @@
             el.select();
             document.execCommand('copy');
             document.body.removeChild(el);
-            showToast('內容已複製');
+            showToast('內容已複製到剪貼簿');
         }
 
         function editPrompt(id) {
@@ -558,7 +536,6 @@
             t.classList.replace('opacity-0', 'opacity-100');
             setTimeout(() => t.classList.replace('opacity-100', 'opacity-0'), 3000);
         }
-        
     </script>
 </body>
 </html>
