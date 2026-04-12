@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Hub</title>
+    <title>Prompt Hub - 試算表自動同步版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
@@ -66,7 +66,7 @@
         <div class="p-4 border-t border-slate-100 space-y-2">
             <div class="flex items-center justify-between px-2 mb-2">
                 <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">同步狀態</span>
-                <span id="lastSyncTime" class="text-[10px] text-slate-400 font-mono">載入中...</span>
+                <span id="lastSyncTime" class="text-[10px] text-slate-400 font-mono">尚未同步</span>
             </div>
             <button id="syncBtn" onclick="manualSync()" class="w-full py-2 px-4 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors">
                 <i data-lucide="cloud-download" class="w-4 h-4"></i>
@@ -112,16 +112,23 @@
             <h3 class="text-xl font-bold text-slate-800 mb-2 flex items-center gap-2">
                 <i data-lucide="settings" class="w-5 h-5"></i> 系統設定
             </h3>
-            <p class="text-sm text-slate-400 mb-6">設定完成後，網頁將自動與雲端同步。</p>
+            <p class="text-sm text-slate-400 mb-6">目前使用的 Google Apps Script URL：</p>
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Web App URL</label>
-                    <input type="text" id="sheetsUrlInput" class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-xs" placeholder="https://script.google.com/macros/s/.../exec">
+                    <input type="text" id="sheetsUrlInput" class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-[10px]" placeholder="請輸入網址">
+                </div>
+                <div class="p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                    <p class="text-xs text-amber-800 leading-relaxed">
+                        <strong>沉穩提醒：</strong><br>
+                        如果修改 HTML 代碼後網址沒變，請點擊下方的「重置並使用代碼預設網址」來強制更新本地記憶。
+                    </p>
                 </div>
             </div>
-            <div class="mt-8 flex gap-3">
-                <button onclick="closeModal('settingsModal')" class="flex-1 py-3 text-slate-500 font-medium">取消</button>
-                <button onclick="saveSettings()" class="flex-1 py-3 bg-indigo-600 text-white font-medium rounded-xl shadow-md">儲存設定</button>
+            <div class="mt-8 flex flex-col gap-2">
+                <button onclick="saveSettings()" class="w-full py-3 bg-indigo-600 text-white font-medium rounded-xl shadow-md">儲存目前網址</button>
+                <button onclick="resetUrlToDefault()" class="w-full py-2 text-slate-500 text-sm hover:underline">重置並使用代碼預設網址</button>
+                <button onclick="closeModal('settingsModal')" class="w-full py-2 text-slate-400 text-sm">關閉</button>
             </div>
         </div>
     </div>
@@ -172,10 +179,11 @@
     </div>
 
     <script>
+        // 本次修正：預設 URL 已換成您測試成功的 IHg 網址
+        const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec';
+
         let db = {
-            settings: { 
-                sheetsUrl: 'https://script.google.com/macros/s/AKfycbyArOaEMh03SqA712OGyYgQCrrtrbDReH7Znzj-1MCqLJVZyWnIXmUIBNJyleFQ7IHg/exec' 
-            },
+            settings: { sheetsUrl: DEFAULT_SHEETS_URL },
             projects: [{ id: 'p1', name: '預設專案', prompts: [] }],
             currentProjectId: 'p1'
         };
@@ -187,15 +195,19 @@
             if (saved) {
                 try { 
                     const parsed = JSON.parse(saved);
+                    // 如果本地記憶有值，則覆蓋預設值
                     if (parsed.settings) db = parsed;
                 } catch(e) { console.error(e); }
             }
-            document.getElementById('sheetsUrlInput').value = db.settings.sheetsUrl || '';
+            
+            // 畫面顯示當前使用的 URL
+            document.getElementById('sheetsUrlInput').value = db.settings.sheetsUrl;
             
             renderUI();
             initSortable();
             lucide.createIcons();
 
+            // 自動載入
             if (db.settings.sheetsUrl) {
                 await manualSync();
             }
@@ -222,6 +234,7 @@
             const url = db.settings.sheetsUrl;
             if (!url) return;
             try {
+                // 推送採用 no-cors 模式，最穩定
                 await fetch(url, {
                     method: 'POST',
                     mode: 'no-cors', 
@@ -236,7 +249,7 @@
 
         function manualSync() {
             const url = db.settings.sheetsUrl;
-            if (!url) return showToast('請先設定試算表 URL', true);
+            if (!url) return;
 
             document.getElementById('autoSyncIndicator').classList.remove('hidden');
             updateLastSyncLabel('讀取中...');
@@ -244,7 +257,6 @@
             const callbackName = 'jsonp_callback_' + Math.round(1000000 * Math.random());
             let timeoutTriggered = false;
 
-            // 建立超時處理
             const timeoutId = setTimeout(() => {
                 timeoutTriggered = true;
                 if (window[callbackName]) {
@@ -252,10 +264,9 @@
                     const scriptEl = document.getElementById(callbackName);
                     if (scriptEl) scriptEl.remove();
                     updateLastSyncLabel('載入超時');
-                    showToast('從雲端抓取資料超時，請檢查腳本是否部署正確', true);
                     document.getElementById('autoSyncIndicator').classList.add('hidden');
                 }
-            }, 10000); // 10 秒超時
+            }, 8000);
 
             window[callbackName] = function(cloudData) {
                 if (timeoutTriggered) return;
@@ -276,9 +287,6 @@
                         showToast('成功載入雲端資料');
                     }
                     updateLastSyncLabel('雲端同步中');
-                } else {
-                    showToast('雲端目前尚無資料', false);
-                    updateLastSyncLabel('無資料');
                 }
                 document.getElementById('autoSyncIndicator').classList.add('hidden');
             };
@@ -294,7 +302,6 @@
                 delete window[callbackName];
                 script.remove();
                 updateLastSyncLabel('連線失敗');
-                showToast('JSONP 連線錯誤，請確認 GAS 網址與權限設定', true);
                 document.getElementById('autoSyncIndicator').classList.add('hidden');
             };
 
@@ -307,7 +314,25 @@
             document.getElementById('lastSyncTime').innerText = `${status} ${timeStr}`;
         }
 
-        // --- UI 渲染與功能 ---
+        // --- UI 操作 ---
+
+        function saveSettings() {
+            db.settings.sheetsUrl = document.getElementById('sheetsUrlInput').value.trim();
+            saveDB();
+            closeModal('settingsModal');
+            manualSync();
+            showToast('網址已儲存');
+        }
+
+        function resetUrlToDefault() {
+            if (confirm('確定要捨棄目前手動輸入的網址，改用 HTML 代碼預設的網址嗎？')) {
+                db.settings.sheetsUrl = DEFAULT_SHEETS_URL;
+                document.getElementById('sheetsUrlInput').value = DEFAULT_SHEETS_URL;
+                saveDB();
+                manualSync();
+                showToast('已重置為代碼預設網址');
+            }
+        }
 
         function renderUI() {
             const list = document.getElementById('projectList');
@@ -427,7 +452,6 @@
             saveDB();
             renderUI();
             closeModal('promptModal');
-            showToast('已儲存內容並啟動自動同步');
         }
 
         function saveProject() {
@@ -439,7 +463,6 @@
             saveDB();
             renderUI();
             closeModal('projectModal');
-            showToast('專案已建立');
         }
 
         function deletePrompt(id) {
@@ -448,7 +471,6 @@
                 project.prompts = project.prompts.filter(p => p.id !== id);
                 saveDB();
                 renderUI();
-                showToast('已移除訊息');
             }
         }
 
@@ -459,15 +481,7 @@
                 db.currentProjectId = db.projects[0].id;
                 saveDB();
                 renderUI();
-                showToast('專案已移除');
             }
-        }
-
-        function saveSettings() {
-            db.settings.sheetsUrl = document.getElementById('sheetsUrlInput').value.trim();
-            saveDB();
-            closeModal('settingsModal');
-            manualSync();
         }
 
         function copyPrompt(id) {
@@ -504,7 +518,10 @@
         window.openModal = (id) => {
             const m = document.getElementById(id);
             if (id === 'promptModal' && !document.getElementById('editPromptId').value) {
-                ['editPromptId', 'promptTitleInput', 'promptContentInput', 'promptNoteInput'].forEach(i => document.getElementById(i).value = '');
+                ['editPromptId', 'promptTitleInput', 'promptContentInput', 'promptNoteInput'].forEach(i => {
+                    const el = document.getElementById(i);
+                    if (el) el.value = '';
+                });
             }
             m.classList.remove('hidden');
         };
