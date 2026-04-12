@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Hub - 專案提示詞管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- 引入拖曳排序庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+        }
+        /* 拖曳時的樣式 */
+        .sortable-ghost {
+            opacity: 0.4;
+            background-color: #eef2ff !important;
+            border: 2px dashed #6366f1 !important;
+        }
+        .drag-handle {
+            cursor: grab;
+        }
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <!-- 側邊欄 (專案列表) -->
+    <aside class="w-full md:w-64 bg-white border-r border-slate-200 flex flex-col h-1/3 md:h-full">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="layout-grid" class="w-5 h-5 text-indigo-600"></i>
+                Prompt Hub
+            </h1>
+        </div>
+        
+        <div class="p-4 flex flex-col gap-2">
+            <button onclick="openModal('projectModal')" class="w-full py-2 px-4 bg-indigo-50 text-indigo-700 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-indigo-100 transition-colors">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                新增專案
+            </button>
+        </div>
+
+        <!-- 專案列表容器支援排序 -->
+        <nav id="projectList" class="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4 space-y-1">
+            <!-- 專案項目會在這裡動態生成 -->
+        </nav>
+
+        <div class="p-4 border-t border-slate-100 space-y-2">
+            <button onclick="exportData()" class="w-full py-2 px-4 text-slate-600 hover:bg-slate-100 rounded-lg flex items-center gap-2 transition-colors">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                匯出備份 (JSON)
+            </button>
+            <label class="w-full py-2 px-4 text-slate-600 hover:bg-slate-100 rounded-lg flex items-center gap-2 transition-colors cursor-pointer">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                匯入資料
+                <input type="file" id="importInput" class="hidden" accept=".json" onchange="importData(event)">
+            </label>
+        </div>
+    </aside>
+
+    <!-- 主要內容區 -->
+    <main class="flex-1 flex flex-col h-2/3 md:h-full relative">
+        <!-- 頂部資訊欄 -->
+        <header class="bg-white border-b border-slate-200 p-4 flex items-center justify-between sticky top-0 z-10">
+            <div class="flex flex-col">
+                <h2 id="currentProjectTitle" class="text-lg font-bold text-slate-800">載入中...</h2>
+                <p id="promptCount" class="text-xs text-slate-500">共 0 個提示詞</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="openModal('promptModal')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-indigo-700 transition-shadow shadow-sm">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    新增提示詞
+                </button>
+                <button id="deleteProjectBtn" onclick="deleteCurrentProject()" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="刪除當前專案">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- 提示詞列表容器支援排序 -->
+        <div id="promptContainer" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
+            <!-- 提示詞卡片會在這裡動態生成 -->
+        </div>
+
+        <!-- 空狀態顯示 -->
+        <div id="emptyState" class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 p-8 text-center pointer-events-none">
+            <i data-lucide="folder-open" class="w-16 h-16 mb-4 opacity-20"></i>
+            <p class="text-lg font-medium">目前的專案沒有提示詞</p>
+            <p class="text-sm">點擊右上角的「新增提示詞」開始記錄吧！</p>
+        </div>
+    </main>
+
+    <!-- 彈窗：新增/編輯專案 -->
+    <div id="projectModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-overlay absolute inset-0" onclick="closeModal('projectModal')"></div>
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden transform transition-all">
+            <div class="p-6">
+                <h3 class="text-xl font-bold text-slate-800 mb-4">建立新專案</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">專案名稱</label>
+                        <input type="text" id="projectNameInput" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="例如：個人部落格、程式開發...">
+                    </div>
+                </div>
+                <div class="mt-6 flex gap-3">
+                    <button onclick="closeModal('projectModal')" class="flex-1 py-2 px-4 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 font-medium">取消</button>
+                    <button onclick="saveProject()" class="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">確認建立</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 彈窗：新增/編輯提示詞 -->
+    <div id="promptModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-overlay absolute inset-0" onclick="closeModal('promptModal')"></div>
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden transform transition-all">
+            <div class="p-6">
+                <h3 id="promptModalTitle" class="text-xl font-bold text-slate-800 mb-4">新增提示詞</h3>
+                <div class="space-y-4">
+                    <input type="hidden" id="editPromptId">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">提示詞標題</label>
+                        <input type="text" id="promptTitleInput" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="輸入易於辨識的標題">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">內容 (Prompt Content)</label>
+                        <textarea id="promptContentInput" rows="6" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none font-mono text-sm" placeholder="在此輸入完整的提示詞內容..."></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">備註 (Notes)</label>
+                        <textarea id="promptNoteInput" rows="3" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none text-sm bg-slate-50" placeholder="輸入補充說明、建議模型或參數等..."></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex gap-3">
+                    <button onclick="closeModal('promptModal')" class="flex-1 py-2 px-4 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 font-medium">取消</button>
+                    <button onclick="savePrompt()" class="flex-1 py-2 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">儲存提示詞</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 訊息提示 -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg opacity-0 pointer-events-none transition-opacity duration-300 z-[100] flex items-center gap-2">
+        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toastMsg">成功</span>
+    </div>
+
+    <script>
+        // 資料結構定義
+        let db = {
+            projects: [
+                { id: 'p1', name: '預設專案', prompts: [] }
+            ],
+            currentProjectId: 'p1'
+        };
+
+        // 初始化
+        window.onload = () => {
+            const savedData = localStorage.getItem('prompt_manager_db');
+            if (savedData) {
+                try {
+                    db = JSON.parse(savedData);
+                } catch (e) {
+                    console.error("資料解析錯誤", e);
+                }
+            }
+            renderProjects();
+            renderPrompts();
+            initSortable();
+            lucide.createIcons();
+        };
+
+        // --- 拖曳排序初始化 ---
+
+        function initSortable() {
+            // 提示詞排序
+            const promptEl = document.getElementById('promptContainer');
+            Sortable.create(promptEl, {
+                animation: 200,
+                handle: '.drag-handle',
+                ghostClass: 'sortable-ghost',
+                onEnd: function (evt) {
+                    const project = db.projects.find(p => p.id === db.currentProjectId);
+                    const [movedItem] = project.prompts.splice(evt.oldIndex, 1);
+                    project.prompts.splice(evt.newIndex, 0, movedItem);
+                    saveDB();
+                    showToast('順序已更新');
+                }
+            });
+
+            // 專案排序
+            const projectEl = document.getElementById('projectList');
+            Sortable.create(projectEl, {
+                animation: 200,
+                ghostClass: 'sortable-ghost',
+                onEnd: function (evt) {
+                    const [movedItem] = db.projects.splice(evt.oldIndex, 1);
+                    db.projects.splice(evt.newIndex, 0, movedItem);
+                    saveDB();
+                    showToast('專案順序已更新');
+                }
+            });
+        }
+
+        // --- 核心功能：專案管理 ---
+
+        function renderProjects() {
+            const list = document.getElementById('projectList');
+            list.innerHTML = '';
+
+            db.projects.forEach(project => {
+                const isActive = project.id === db.currentProjectId;
+                const btn = document.createElement('div');
+                btn.className = `w-full text-left px-4 py-3 rounded-lg flex items-center justify-between group transition-all cursor-pointer ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`;
+                btn.onclick = () => switchProject(project.id);
+                
+                btn.innerHTML = `
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <i data-lucide="grip-vertical" class="w-4 h-4 shrink-0 opacity-0 group-hover:opacity-40 transition-opacity"></i>
+                        <span class="truncate font-medium">${project.name}</span>
+                    </div>
+                    <span class="text-xs ${isActive ? 'text-indigo-200' : 'text-slate-400'} group-hover:scale-110 transition-transform">${project.prompts.length}</span>
+                `;
+                list.appendChild(btn);
+            });
+            lucide.createIcons();
+        }
+
+        function switchProject(id) {
+            db.currentProjectId = id;
+            saveDB();
+            renderProjects();
+            renderPrompts();
+        }
+
+        function saveProject() {
+            const name = document.getElementById('projectNameInput').value.trim();
+            if (!name) return showToast('請輸入專案名稱', true);
+
+            const newProject = {
+                id: 'p' + Date.now(),
+                name: name,
+                prompts: []
+            };
+
+            db.projects.push(newProject);
+            db.currentProjectId = newProject.id;
+            
+            document.getElementById('projectNameInput').value = '';
+            closeModal('projectModal');
+            saveDB();
+            renderProjects();
+            renderPrompts();
+            showToast('專案已建立');
+        }
+
+        function deleteCurrentProject() {
+            if (db.projects.length <= 1) {
+                return showToast('至少需保留一個專案', true);
+            }
+
+            if (confirm('確定要刪除當前專案嗎？所有內容將無法復原。')) {
+                db.projects = db.projects.filter(p => p.id !== db.currentProjectId);
+                db.currentProjectId = db.projects[0].id;
+                saveDB();
+                renderProjects();
+                renderPrompts();
+                showToast('專案已刪除');
+            }
+        }
+
+        // --- 核心功能：提示詞管理 ---
+
+        function renderPrompts() {
+            const container = document.getElementById('promptContainer');
+            const emptyState = document.getElementById('emptyState');
+            const project = db.projects.find(p => p.id === db.currentProjectId);
+
+            if (!project) return;
+
+            document.getElementById('currentProjectTitle').innerText = project.name;
+            document.getElementById('promptCount').innerText = `共 ${project.prompts.length} 個提示詞`;
+
+            container.innerHTML = '';
+            
+            if (project.prompts.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                project.prompts.forEach(prompt => {
+                    const card = document.createElement('div');
+                    card.className = "bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative";
+                    
+                    // 備註顯示邏輯
+                    const noteHtml = prompt.note 
+                        ? `<div class="mt-3 pt-3 border-t border-slate-100 flex gap-2 text-slate-400">
+                               <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+                               <p class="text-xs italic leading-relaxed">${prompt.note}</p>
+                           </div>` 
+                        : '';
+
+                    card.innerHTML = `
+                        <div class="p-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                            <div class="flex items-center gap-2 overflow-hidden">
+                                <div class="drag-handle p-1 text-slate-300 hover:text-slate-500 transition-colors">
+                                    <i data-lucide="grip-vertical" class="w-5 h-5"></i>
+                                </div>
+                                <h4 class="font-bold text-slate-800 truncate pr-4">${prompt.title}</h4>
+                            </div>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button onclick="copyToClipboard('${prompt.id}')" class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="點擊複製">
+                                    <i data-lucide="copy" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="editPrompt('${prompt.id}')" class="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors" title="編輯">
+                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deletePrompt('${prompt.id}')" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="刪除">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-white">
+                            <pre class="text-sm text-slate-600 whitespace-pre-wrap font-mono line-clamp-6 leading-relaxed">${prompt.content}</pre>
+                            ${noteHtml}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+            lucide.createIcons();
+        }
+
+        function savePrompt() {
+            const title = document.getElementById('promptTitleInput').value.trim();
+            const content = document.getElementById('promptContentInput').value.trim();
+            const note = document.getElementById('promptNoteInput').value.trim();
+            const editId = document.getElementById('editPromptId').value;
+
+            if (!title || !content) return showToast('請填寫完整資訊', true);
+
+            const project = db.projects.find(p => p.id === db.currentProjectId);
+            
+            if (editId) {
+                const index = project.prompts.findIndex(p => p.id === editId);
+                if (index !== -1) {
+                    project.prompts[index] = { 
+                        ...project.prompts[index], 
+                        title, 
+                        content, 
+                        note 
+                    };
+                }
+            } else {
+                const newPrompt = {
+                    id: 'pr' + Date.now(),
+                    title: title,
+                    content: content,
+                    note: note,
+                    createdAt: new Date().toISOString()
+                };
+                // 改為由舊到新排序：使用 push 加到最後面
+                project.prompts.push(newPrompt);
+            }
+
+            closeModal('promptModal');
+            saveDB();
+            renderPrompts();
+            renderProjects();
+            showToast(editId ? '提示詞已更新' : '提示詞已儲存');
+        }
+
+        function editPrompt(id) {
+            const project = db.projects.find(p => p.id === db.currentProjectId);
+            const prompt = project.prompts.find(p => p.id === id);
+            
+            if (prompt) {
+                document.getElementById('promptModalTitle').innerText = '編輯提示詞';
+                document.getElementById('editPromptId').value = prompt.id;
+                document.getElementById('promptTitleInput').value = prompt.title;
+                document.getElementById('promptContentInput').value = prompt.content;
+                document.getElementById('promptNoteInput').value = prompt.note || '';
+                openModal('promptModal');
+            }
+        }
+
+        function deletePrompt(id) {
+            const project = db.projects.find(p => p.id === db.currentProjectId);
+            project.prompts = project.prompts.filter(p => p.id !== id);
+            saveDB();
+            renderPrompts();
+            renderProjects();
+            showToast('已刪除提示詞');
+        }
+
+        function copyToClipboard(id) {
+            const project = db.projects.find(p => p.id === db.currentProjectId);
+            const prompt = project.prompts.find(p => p.id === id);
+            
+            if (prompt) {
+                const textarea = document.createElement('textarea');
+                textarea.value = prompt.content;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast('內容已複製');
+                } catch (err) {
+                    showToast('複製失敗', true);
+                }
+                document.body.removeChild(textarea);
+            }
+        }
+
+        // --- 資料持久化與匯入匯出 ---
+
+        function saveDB() {
+            localStorage.setItem('prompt_manager_db', JSON.stringify(db));
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify(db, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+            const exportFileDefaultName = `prompt_hub_backup_${new Date().toISOString().slice(0,10)}.json`;
+
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+            showToast('匯出成功');
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported.projects && Array.isArray(imported.projects)) {
+                        db = imported;
+                        saveDB();
+                        renderProjects();
+                        renderPrompts();
+                        showToast('資料匯入完成');
+                    } else {
+                        showToast('檔案格式不正確', true);
+                    }
+                } catch (err) {
+                    showToast('讀取檔案失敗', true);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // --- UI 控制 ---
+
+        function openModal(id) {
+            if (id === 'promptModal' && !document.getElementById('editPromptId').value) {
+                document.getElementById('promptModalTitle').innerText = '新增提示詞';
+                document.getElementById('editPromptId').value = '';
+                document.getElementById('promptTitleInput').value = '';
+                document.getElementById('promptContentInput').value = '';
+                document.getElementById('promptNoteInput').value = '';
+            }
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+            if (id === 'promptModal') {
+                document.getElementById('editPromptId').value = '';
+            }
+        }
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            
+            toastMsg.innerText = msg;
+            toast.style.backgroundColor = isError ? '#ef4444' : '#1e293b';
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+
+    </script>
+</body>
+</html>
